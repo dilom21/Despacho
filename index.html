@@ -5,401 +5,297 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Sistema de Despacho y Telemetría Vehicular</title>
     
-    <!-- FASE 3: CSS de Leaflet para el Mapa -->
+    <!-- CSS de Leaflet para el Mapa -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     
-    <!-- FASE 2: CSS y Maquetación (Estilo Tailwind/Moderno) -->
+    <!-- CSS y Maquetación (Estilo Uber / Mapa Central) -->
     <style>
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     
-    /* Fondo con degradado moderno */
-    body { background: linear-gradient(135deg, #e0eafc 0%, #cfdef3 100%); padding: 20px; min-height: 100vh; }
-    h1 { text-align: center; color: #1a252f; margin-bottom: 25px; font-size: 28px; text-shadow: 1px 1px 2px rgba(0,0,0,0.1); }
+    /* El mapa ocupa toda la pantalla */
+    body, html { height: 100%; overflow: hidden; background-color: #e4e9f2; }
     
-    .container { display: flex; gap: 20px; flex-wrap: wrap; max-width: 1200px; margin: 0 auto; }
+    #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
     
-    /* Tarjetas interactivas con sombras suaves */
-    .card { background: rgba(255, 255, 255, 0.95); border-radius: 16px; padding: 25px; box-shadow: 0 8px 20px rgba(0,0,0,0.08); flex: 1; min-width: 300px; transition: transform 0.3s ease, box-shadow 0.3s ease; border-top: 4px solid #3498db; }
-    .card:hover { transform: translateY(-5px); box-shadow: 0 15px 30px rgba(0,0,0,0.15); }
+    /* Capa UI invisible para sobreponer controles sin bloquear el mapa */
+    .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
     
-    /* Estilos del Mapa con bordes más redondeados */
-    #map { height: 400px; width: 100%; border-radius: 12px; margin-top: 15px; border: 3px solid #fff; box-shadow: 0 4px 10px rgba(0,0,0,0.1); z-index: 1; }
-    
-    /* Botones Coloridos y Animados */
-    button { color: white; border: none; padding: 12px 15px; font-weight: bold; border-radius: 8px; cursor: pointer; width: 100%; margin-top: 12px; font-size: 15px; transition: all 0.3s ease; text-transform: uppercase; letter-spacing: 0.5px; }
-    .btn-green { background: linear-gradient(135deg, #2ecc71, #27ae60); } 
-    .btn-green:hover { background: linear-gradient(135deg, #27ae60, #2ecc71); transform: scale(1.02); }
-    
-    .btn-red { background: linear-gradient(135deg, #e74c3c, #c0392b); } 
-    .btn-red:hover { background: linear-gradient(135deg, #c0392b, #e74c3c); transform: scale(1.02); }
-    
-    .btn-blue { background: linear-gradient(135deg, #3498db, #2980b9); } 
-    .btn-blue:hover { background: linear-gradient(135deg, #2980b9, #3498db); transform: scale(1.02); }
-    
-    .btn-warning { background: linear-gradient(135deg, #f1c40f, #f39c12); color: #333; } 
-    .btn-warning:hover { background: linear-gradient(135deg, #f39c12, #f1c40f); transform: scale(1.02); }
-    
-    /* Cajas de Estado */
-    .status-box { padding: 12px; border-radius: 8px; background: #ebf5fb; color: #2980b9; margin-top: 15px; font-weight: bold; font-size: 14px; text-align: center; border-left: 4px solid #3498db; transition: all 0.3s ease; }
-    .alert-box { padding: 12px; border-radius: 8px; background: #fadbd8; color: #c0392b; margin-top: 15px; font-weight: bold; font-size: 14px; text-align: center; display: none; border-left: 4px solid #e74c3c; animation: shake 0.5s; }
-    
-    input[type="time"] { width: 100%; padding: 12px; margin-top: 10px; border: 2px solid #ecf0f1; border-radius: 8px; font-size: 16px; outline: none; transition: border 0.3s; }
-    input[type="time"]:focus { border: 2px solid #3498db; }
-
-    /* Animación de Pulso para el GPS */
-    @keyframes pulse-green {
-        0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.7); }
-        70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); }
-        100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); }
+    /* Botón flotante estilo Uber (Minimalista y circular) */
+    #btn-volver-global { 
+        position: absolute; 
+        top: 25px; 
+        left: 25px; 
+        z-index: 1001; 
+        pointer-events: auto; 
+        background: white; 
+        color: #2c3e50; 
+        border-radius: 50%; 
+        width: 50px; 
+        height: 50px; 
+        font-size: 24px; 
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); 
+        cursor: pointer; 
+        border: none; 
+        display: none; 
+        transition: transform 0.2s ease, background 0.2s ease; 
+        
+        /* Centrado perfecto absoluto */
+        padding: 0; 
+        justify-content: center; 
+        align-items: center; 
     }
+    #btn-volver-global:hover { 
+        transform: scale(1.1); 
+        background: #f8f9fa; 
+    }
+
+    /* Pantalla de inicio flotante centrada */
+    #login-screen { pointer-events: auto; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 40px; border-radius: 24px; text-align: center; margin: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 400px; animation: fadeIn 0.4s ease-out; }
+    #login-screen h2 { color: #1a252f; margin-bottom: 25px; font-size: 22px; }
+
+    /* Tarjetas estilo "Bottom Sheet" (como Yango/Uber) */
+    .card { pointer-events: auto; background: #ffffff; border-radius: 24px 24px 0 0; padding: 30px 25px; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); display: none; width: 100%; max-width: 600px; margin: 0 auto; animation: slideUp 0.4s ease-out; border-top: 5px solid #3498db; }
+    
+    /* Elementos internos de las tarjetas */
+    h2 { color: #2c3e50; font-size: 20px; margin-bottom: 5px; }
+    p { color: #7f8c8d; font-size: 13px; margin-bottom: 15px; }
+    
+    button { color: white; border: none; padding: 14px 15px; font-weight: bold; border-radius: 12px; cursor: pointer; width: 100%; margin-top: 12px; font-size: 15px; transition: transform 0.2s ease, opacity 0.2s; text-transform: uppercase; letter-spacing: 0.5px; }
+    button:active { transform: scale(0.98); }
+    
+    .btn-green { background: #27ae60; } .btn-green:hover { opacity: 0.9; }
+    .btn-red { background: #e74c3c; } .btn-red:hover { opacity: 0.9; }
+    .btn-blue { background: #3498db; } .btn-blue:hover { opacity: 0.9; }
+    .btn-warning { background: #f1c40f; color: #333; } .btn-warning:hover { opacity: 0.9; }
+    .role-btn { margin-bottom: 15px; margin-top: 0; padding: 16px; font-size: 16px; border-radius: 16px; }
+
+    /* Cajas de estado */
+    .status-box { padding: 15px; border-radius: 12px; background: #ebf5fb; color: #2980b9; margin-top: 15px; font-weight: bold; font-size: 14px; text-align: center; border-left: 4px solid #3498db; transition: all 0.3s ease; }
+    .alert-box { padding: 15px; border-radius: 12px; background: #fadbd8; color: #c0392b; margin-top: 15px; font-weight: bold; font-size: 14px; text-align: center; display: none; border-left: 4px solid #e74c3c; animation: shake 0.5s; }
+    
+    input[type="time"] { width: 100%; padding: 14px; margin-top: 5px; border: 2px solid #ecf0f1; border-radius: 12px; font-size: 16px; outline: none; transition: border 0.3s; background: #f8f9fa; }
+    input[type="time"]:focus { border: 2px solid #3498db; background: #fff; }
+
+    /* Animaciones */
+    @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
+    @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.5); } 70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
     .gps-active { animation: pulse-green 1.5s infinite; background: #d5f5e3; color: #27ae60; border-left-color: #27ae60; }
+    @keyframes shake { 0%, 100% { transform: translateX(0); } 25%, 75% { transform: translateX(-5px); } 50% { transform: translateX(5px); } }
 
-    /* Animación de sacudida para alertas */
-    @keyframes shake {
-        0% { transform: translateX(0); }
-        25% { transform: translateX(-5px); }
-        50% { transform: translateX(5px); }
-        75% { transform: translateX(-5px); }
-        100% { transform: translateX(0); }
-    }
-    /* --- MENÚ DE ROLES Y NAVEGACIÓN --- */
-    #login-screen { text-align: center; margin-top: 50px; animation: fadeIn 0.5s; }
-    .role-btn { display: inline-block; width: 250px; margin: 15px; padding: 20px; font-size: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    
-    /* Ocultar las tarjetas de trabajo por defecto */
-    .card { display: none; }
-    
-    .btn-volver { background: #95a5a6; width: auto; padding: 8px 15px; margin-bottom: 15px; font-size: 12px; }
-    .btn-volver:hover { background: #7f8c8d; transform: scale(1.02); }
-    
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-</style>
+    /* Iconos del mapa */
+    .map-icon { font-size: 30px; filter: drop-shadow(2px 4px 4px rgba(0,0,0,0.3)); }
+    .custom-car-icon { font-size: 35px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.5)); transform: scaleX(-1); }
+    </style>
 </head>
 <body>
 
-    <h1>🚖 Plataforma Automatizada de Despacho</h1>
+    <!-- MAPA GLOBAL DE FONDO -->
+    <div id="map"></div>
 
-    <!-- MENÚ DE INICIO -->
-    <div id="login-screen">
-        <h2 style="color: #34495e; margin-bottom: 20px;">Seleccione su Perfil de Acceso</h2>
-        <button class="btn-blue role-btn" onclick="seleccionarRol('cliente')">👤 Portal Cliente</button>
-        <button class="btn-green role-btn" onclick="seleccionarRol('conductor')">📱 App Conductor</button>
-        <button class="btn-warning role-btn" onclick="seleccionarRol('admin')">🖥️ Central de Monitoreo</button>
-    </div>
-
-    <div class="container">
+    <!-- BOTÓN GLOBAL DE NAVEGACIÓN -->
+    <button id="btn-volver-global" onclick="volverInicio()" title="Cambiar Perfil (Cerrar Sesión)">≡</button>
+    
+    <!-- CAPA UI FLOTANTE -->
+    <div class="ui-layer">
         
+        <!-- MENÚ DE INICIO -->
+        <div id="login-screen">
+            <h2>Seleccione su Perfil</h2>
+            <button class="btn-blue role-btn" onclick="seleccionarRol('cliente')">👤 Portal Cliente</button>
+            <button class="btn-green role-btn" onclick="seleccionarRol('conductor')">📱 App Conductor</button>
+            <button class="btn-warning role-btn" onclick="seleccionarRol('admin')">🖥️ Monitoreo Flota</button>
+        </div>
+
         <!-- VISTA DEL CLIENTE -->
         <div class="card" id="card-cliente">
-            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
             <h2>👤 Panel Cliente</h2>
-            <p style="color: #7f8c8d; font-size: 12px;">Planificación Predictiva de Rutas</p>
-            <label style="margin-top: 10px; display: block; font-weight: bold;">Hora límite de llegada a destino:</label>
+            <p>Planificación Predictiva de Rutas</p>
+            <label style="font-weight: bold; font-size: 14px;">Hora límite de llegada:</label>
             <input type="time" id="horaDestino" required>
-            <button class="btn-blue" onclick="solicitarViaje()">Solicitar Viaje (Calcular ETA)</button>
-            <div id="clienteStatus" class="status-box">Esperando solicitud...</div>
+            <button id="btnGPSCliente" class="btn-green" onclick="actualizarGPSCliente()" style="margin-bottom: 10px;">📍 Usar mi ubicación actual</button>
+            <button class="btn-blue" onclick="solicitarViaje()">📍 Solicitar Viaje</button>
+            <div id="clienteStatus" class="status-box">Selecciona tu hora y pide un viaje...</div>
         </div>
 
         <!-- VISTA DEL CONDUCTOR -->
-        <div class="card" id="card-conductor">
-            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
+        <div class="card" id="card-conductor" style="border-top-color: #27ae60;">
             <h2>📱 Perfil Conductor</h2>
+            <p>Recepción de viajes y telemetría</p>
             <div id="conductorStatus" class="status-box">Estado: Inactivo</div>
             <div id="alertaBloqueo" class="alert-box">BLOQUEADO: Auditoría física requerida.</div>
             
-            <button id="btnStartGPS" class="btn-green" onclick="iniciarTelemetria()">Activar Transmisión GPS</button>
-            <button id="btnStopGPS" class="btn-red" onclick="detenerTelemetria()" style="display:none;">Detener Transmisión</button>
+            <button id="btnStartGPS" class="btn-green" onclick="iniciarTelemetria()">📡 Activar Transmisión GPS</button>
+            <button id="btnStopGPS" class="btn-red" onclick="detenerTelemetria()" style="display:none;">🛑 Detener Transmisión</button>
             
-            <div id="controlesViaje" style="display:none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+            <div id="controlesViaje" style="display:none; margin-top: 15px; border-top: 1px solid #ecf0f1; padding-top: 15px;">
                 <button id="btnAceptar" class="btn-green" onclick="aceptarViaje()" style="margin-bottom: 10px;">✅ Aceptar Viaje</button>
-                <button class="btn-blue" onclick="llegueAlOrigen()">📍 Llegué al Origen (Iniciar Espera)</button>
-                <div style="display: flex; gap: 5px;">
+                <button class="btn-blue" onclick="llegueAlOrigen()">📍 Llegué al Origen (Cobrar Espera)</button>
+                <div style="display: flex; gap: 10px; margin-top: 10px;">
                     <button class="btn-warning" onclick="rechazarViaje('trafico')">Rechazar (Tráfico)</button>
-                    <button class="btn-red" onclick="rechazarViaje('falla')">Rechazar (Falla)</button>
+                    <button class="btn-red" onclick="rechazarViaje('falla')">Falla Mecánica</button>
                 </div>
             </div>
             <div id="montoEsperaBox" class="status-box" style="display:none; background: #fef9e7; color: #d35400;">Deuda por espera: 0 Bs.</div>
         </div>
 
         <!-- VISTA DEL ADMINISTRADOR -->
-        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
-            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
-            <h2>🖥️ Panel de Monitoreo de Flota</h2>
-            <div id="adminStatus" class="status-box">Esperando coordenadas...</div>
+        <div class="card" id="card-admin" style="border-top-color: #f39c12;">
+            <h2>🖥️ Central de Monitoreo</h2>
+            <p>Vista global de telemetría y auditoría</p>
+            <div id="adminStatus" class="status-box">Monitoreando flota en tiempo real...</div>
             <div id="alertaDesvio" class="alert-box">¡ALERTA! Posible desvío de ruta detectado.</div>
-            <div id="map"></div>
+            <button id="btnDesbloquear" class="btn-green" onclick="desbloquearConductor()" style="display:none; margin-top: 15px;">🔧 Aprobar Auditoría y Desbloquear</button>
         </div>
     </div>
 
-    <!-- SCRIPT DE NAVEGACIÓN VISUAL (Fuera del Módulo) -->
-    <script>
-        function seleccionarRol(rol) {
-            // 1. Ocultar el menú de inicio
-            document.getElementById('login-screen').style.display = 'none';
-            
-            // 2. Mostrar solo la interfaz seleccionada
-            if(rol === 'cliente') document.getElementById('card-cliente').style.display = 'block';
-            if(rol === 'conductor') document.getElementById('card-conductor').style.display = 'block';
-            if(rol === 'admin') {
-                document.getElementById('card-admin').style.display = 'block';
-                // Truco vital: Fuerza al mapa a recalcular su tamaño al volverse visible
-                setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
-            }
-        }
-
-        function volverInicio() {
-            // Ocultar todas las tarjetas
-            document.getElementById('card-cliente').style.display = 'none';
-            document.getElementById('card-conductor').style.display = 'none';
-            document.getElementById('card-admin').style.display = 'none';
-            
-            // Mostrar menú principal
-            document.getElementById('login-screen').style.display = 'block';
-        }
-    </script>
-
-    <!-- Librería Leaflet (Mapas) -->
+    <!-- SCRIPT DE MAPA Y NAVEGACIÓN VISUAL -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    
-    <!-- FASE 1: Integración con Firebase -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
-        import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
-
-        // PEGA TUS CREDENCIALES DE FIREBASE AQUÍ
-        const firebaseConfig = {
-        apiKey: "AIzaSyAgEX6gSM10oX4L9HtL2krFL4rOrvGqgRU",
-        authDomain: "despacho-1eef3.firebaseapp.com",
-        projectId: "despacho-1eef3",
-        storageBucket: "despacho-1eef3.firebasestorage.app",
-        messagingSenderId: "51256065309",
-        appId: "1:51256065309:web:6b3584573524a3315d75f4"
-        };
-        const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
-
-        // --- INICIALIZACIÓN DEL MAPA (FASE 3) ---
-        const map = L.map('map').setView([-17.7833, -63.1821], 14);
+    <script>
+        // Inicializar el mapa de fondo
+        const map = L.map('map', { zoomControl: false }).setView([-17.7833, -63.1821], 14);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
-        let vehicleMarker = null;
-
-        // 🌟 CREAR ICONO DE AUTO PERSONALIZADO
-        const carIcon = L.divIcon({
-            html: '<div style="font-size: 35px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.4)); transform: scaleX(-1);">🚖</div>',
-            className: 'custom-car-icon',
-            iconSize: [35, 35],
-            iconAnchor: [17, 17] // Centro del icono
-        });
+        
+        // Coordenadas iniciales (ahora mutables)
+        let origenCliente = { lat: -17.7833, lng: -63.1821 }; 
+        const destinoPrueba = { lat: -17.7700, lng: -63.1800 };
+        
+        // Dibujar los marcadores estáticos (Cliente y Destino)
+        const iconCliente = L.divIcon({ html: '<div class="map-icon">🙋‍♂️</div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
+        const iconDestino = L.divIcon({ html: '<div class="map-icon">🏁</div>', className: '', iconSize: [30, 30], iconAnchor: [15, 30] });
+        
+        let marcadorCliente = L.marker([origenCliente.lat, origenCliente.lng], { icon: iconCliente }).addTo(map);
+        L.marker([destinoPrueba.lat, destinoPrueba.lng], { icon: iconDestino }).addTo(map);
+        
+        // Polilínea dinámica
+        let rutaPolilinea = L.polyline([[origenCliente.lat, origenCliente.lng], [destinoPrueba.lat, destinoPrueba.lng]], {color: '#3498db', weight: 4, dashArray: '5, 10'}).addTo(map);
+        
+        // Trazar la ruta ideal para todos
+        L.polyline([[origenPrueba.lat, origenPrueba.lng], [destinoPrueba.lat, destinoPrueba.lng]], {color: '#3498db', weight: 4, dashArray: '5, 10'}).addTo(map);
 
         // Variables Globales
+        let vehicleMarker = null;
         let watchId = null;
         let conductorBloqueado = false;
         let temporizadorEspera = null;
         let montoEspera = 0;
         let distanciaAnterior = null;
-        const destinoPrueba = { lat: -17.7700, lng: -63.1800 }; // Coordenadas ficticias del destino
-        // --- NUEVAS VARIABLES GLOBALES ---
         const viajeActivoId = "viaje_01";
         const conductorId = "conductor_01";
         let timerAsignacion = null;
 
-        // Verificar permanentemente si el conductor está bloqueado en BD
-        onSnapshot(doc(db, "conductores", conductorId), (docSnapshot) => {
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                if (data.estado_operativo === false) {
-                    conductorBloqueado = true;
-                    detenerTelemetria();
-                    document.getElementById('alertaBloqueo').style.display = "block";
-                    document.getElementById('btnStartGPS').style.display = "none";
-                    document.getElementById('controlesViaje').style.display = "none";
-                }
-            }
+        // Ícono del Auto
+        const carIcon = L.divIcon({
+            html: '<div class="custom-car-icon">🚖</div>',
+            className: '', iconSize: [35, 35], iconAnchor: [17, 17]
         });
 
-        // Fórmula Haversine para distancias reales (Paso 3 y 5)
+        // Navegación UI
+        function seleccionarRol(rol) {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('btn-volver-global').style.display = 'block';
+            
+            if(rol === 'cliente') {
+                document.getElementById('card-cliente').style.display = 'block';
+                map.setView([origenPrueba.lat, origenPrueba.lng], 15);
+            }
+            if(rol === 'conductor') {
+                document.getElementById('card-conductor').style.display = 'block';
+            }
+            if(rol === 'admin') {
+                document.getElementById('card-admin').style.display = 'block';
+                map.fitBounds([
+                    [origenPrueba.lat, origenPrueba.lng],
+                    [destinoPrueba.lat, destinoPrueba.lng]
+                ]);
+            }
+            setTimeout(() => map.invalidateSize(), 300);
+        }
+
+        function volverInicio() {
+            document.getElementById('card-cliente').style.display = 'none';
+            document.getElementById('card-conductor').style.display = 'none';
+            document.getElementById('card-admin').style.display = 'none';
+            document.getElementById('btn-volver-global').style.display = 'flex';
+            document.getElementById('login-screen').style.display = 'block';
+            map.setView([-17.7833, -63.1821], 14);
+        }
+
         function calcularDistancia(lat1, lon1, lat2, lon2) {
-            const R = 6371; // Radio de la Tierra en km
+            const R = 6371; 
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLon = (lon2 - lon1) * Math.PI / 180;
             const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
                       Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
                       Math.sin(dLon/2) * Math.sin(dLon/2);
-            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-            return R * c; // Devuelve la distancia en kilómetros
+            return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
         }
-        // --- LÓGICA DEL CLIENTE ---
-        window.solicitarViaje = async function() {
-            const horaInput = document.getElementById('horaDestino').value;
-            if(!horaInput) return alert("Ingresa una hora válida");
-            
-            // PASO 3: Planificación Predictiva (ETA Dinámico)
-            const origenPrueba = { lat: -17.7833, lng: -63.1821 };
-            const distKm = calcularDistancia(origenPrueba.lat, origenPrueba.lng, destinoPrueba.lat, destinoPrueba.lng);
-            const tiempoMinutos = Math.round(distKm * 3); // Simula velocidad urbana: 3 min por kilómetro
-            
-            let [horas, minutos] = horaInput.split(':').map(Number);
-            let fecha = new Date();
-            fecha.setHours(horas, minutos - tiempoMinutos, 0);
-            const horaSalida = fecha.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            
-            document.getElementById('clienteStatus').innerText = `Ruta de ${distKm.toFixed(1)}km. Recogida ideal: ${horaSalida}. Buscando conductor...`;
-            
-            // PASO 1: Creación del viaje en la Base de Datos
-            await setDoc(doc(db, "viajes", viajeActivoId), {
-                estado: "buscando_conductor",
-                origen: origenPrueba,
-                destino: destinoPrueba,
-                deuda_espera: 0
-            });
+    </script>
+
+    <!-- INTEGRACIÓN FIREBASE -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-app.js";
+        import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyAgEX6gSM10oX4L9HtL2krFL4rOrvGqgRU",
+            authDomain: "despacho-1eef3.firebaseapp.com",
+            projectId: "despacho-1eef3",
+            storageBucket: "despacho-1eef3.firebasestorage.app",
+            messagingSenderId: "51256065309",
+            appId: "1:51256065309:web:6b3584573524a3315d75f4"
         };
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
 
-        // --- FEEDBACK EN TIEMPO REAL PARA EL CLIENTE ---
-        onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                const statusDiv = document.getElementById('clienteStatus');
-                
-                if (data.estado === "conductor_en_camino") {
-                    statusDiv.innerHTML = "✅ <b>¡Conductor asignado!</b> Va en camino hacia tu ubicación.";
-                    statusDiv.style.background = "#d5f5e3";
-                    statusDiv.style.color = "#27ae60";
-                } else if (data.estado === "rechazado_por_tiempo" || data.estado === "rechazado_trafico") {
-                    statusDiv.innerHTML = "⚠️ Viaje rechazado. Por favor, solicita un nuevo viaje.";
-                    statusDiv.style.background = "#fadbd8";
-                    statusDiv.style.color = "#c0392b";
-                }
-            }
-        });
-
-        window.aceptarViaje = async function() {
-            clearTimeout(timerAsignacion); // Detiene el contador de 30s
-            document.getElementById('btnAceptar').style.display = "none";
-            document.getElementById('conductorStatus').innerText = "Ruta aceptada. Dirígete al origen.";
-            
-            // Actualiza la base de datos
-            await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "conductor_en_camino" });
-        };
-
-        // --- LÓGICA DEL CONDUCTOR (FASE 3 y 4) ---
-        window.iniciarTelemetria = async function() {
-            if(conductorBloqueado) return alert("Estás bloqueado por el sistema.");
-            
+        window.actualizarGPSCliente = function() {
             if ("geolocation" in navigator) {
-                // Dentro de window.iniciarTelemetria...
-                document.getElementById('conductorStatus').innerText = "Estado: 📡 Transmitiendo en vivo...";
-                document.getElementById('conductorStatus').classList.add('gps-active'); // Activa la animación CSS
-                document.getElementById('btnStartGPS').style.display = "none";
-                document.getElementById('btnStopGPS').style.display = "block";
-
-                watchId = navigator.geolocation.watchPosition(async (position) => {
-                    const { latitude, longitude } = position.coords;
-                    
-                    // Guardar en Firestore usando números tipo DOUBLE
-                    await setDoc(doc(db, "telemetria", "conductor_01"), {
-                        latitud: latitude,
-                        longitud: longitude,
-                        ultima_actualizacion: new Date().toISOString()
-                    });
-                }, (error) => console.error(error), { enableHighAccuracy: true });
-            }
-        };
-
-        window.detenerTelemetria = function() {
-            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
-            // Dentro de window.detenerTelemetria...
-            document.getElementById('conductorStatus').innerText = "Estado: Inactivo";
-            document.getElementById('conductorStatus').classList.remove('gps-active'); // Detiene la animación CSS
-            document.getElementById('btnStartGPS').style.display = "block";
-            document.getElementById('btnStopGPS').style.display = "none";
-        };
-
-        // PASO 1: Despacho Geolocalizado (Temporizador de 30s)
-        onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
-            if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                if (data.estado === "buscando_conductor" && !conductorBloqueado) {
-                    document.getElementById('controlesViaje').style.display = "block";
-                    document.getElementById('conductorStatus').innerText = "⚠️ ¡NUEVO VIAJE! Tienes 30s para aceptar.";
-                    
-                    // Inicia el temporizador de 30 segundos
-                    timerAsignacion = setTimeout(async () => {
-                        document.getElementById('controlesViaje').style.display = "none";
-                        document.getElementById('conductorStatus').innerText = "Viaje rechazado por inactividad.";
-                        await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_por_tiempo" });
-                    }, 30000);
-                }
-            }
-        });
-        // PASO 2: Auditoría de Rechazos (Bloqueo Preventivo real en BD)
-        window.rechazarViaje = async function(motivo) {
-            clearTimeout(timerAsignacion); // Detiene el contador de 30s
-            if(motivo === 'falla') {
-                conductorBloqueado = true;
-                detenerTelemetria();
-                document.getElementById('alertaBloqueo').style.display = "block";
-                document.getElementById('controlesViaje').style.display = "none";
+                document.getElementById('btnGPSCliente').innerText = "Buscando satélites...";
                 
-                // Escribe el bloqueo en Firestore
-                await setDoc(doc(db, "conductores", conductorId), { estado_operativo: false }, { merge: true });
-            } else {
-                alert("Viaje rechazado por tráfico.");
-                document.getElementById('controlesViaje').style.display = "none";
-                await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_trafico" });
+                navigator.geolocation.getCurrentPosition((position) => {
+                    // 1. Actualiza coordenadas
+                    origenCliente = { lat: position.coords.latitude, lng: position.coords.longitude };
+                    
+                    // 2. Mueve el muñequito en el mapa
+                    marcadorCliente.setLatLng([origenCliente.lat, origenCliente.lng]);
+                    
+                    // 3. Redibuja la línea de la ruta
+                    rutaPolilinea.setLatLngs([[origenCliente.lat, origenCliente.lng], [destinoPrueba.lat, destinoPrueba.lng]]);
+                    
+                    // 4. Centra la cámara
+                    map.panTo([origenCliente.lat, origenCliente.lng]);
+                    
+                    document.getElementById('btnGPSCliente').innerText = "✅ Ubicación Actualizada";
+                }, (error) => {
+                    alert("Por favor, permite el acceso a tu ubicación.");
+                }, { enableHighAccuracy: true });
             }
         };
-
-        // PASO 4: Contador de Espera Monetizado y Sincronizado
-        window.llegueAlOrigen = function() {
-            clearTimeout(timerAsignacion);
-            alert("Has llegado. Tienes 10 segundos de cortesía.");
-            document.getElementById('montoEsperaBox').style.display = "block";
-            
-            setTimeout(() => {
-                temporizadorEspera = setInterval(async () => {
-                    montoEspera += 2; 
-                    document.getElementById('montoEsperaBox').innerText = `Deuda por espera: ${montoEspera} Bs.`;
-                    // Sincroniza la deuda en vivo con Firestore
-                    await updateDoc(doc(db, "viajes", viajeActivoId), { deuda_espera: montoEspera });
-                }, 5000); 
-            }, 10000); 
-        };
-
-        // --- LÓGICA DEL ADMINISTRADOR ---
-        
-        // Dibuja la ruta ideal paramétrica en el mapa (Paso 5)
-        const rutaIdeal = L.polyline([[-17.7833, -63.1821], [destinoPrueba.lat, destinoPrueba.lng]], {color: '#3498db', weight: 4}).addTo(map);
-
-        // PASO 5: Navegación y Auditoría de Desvíos
+        // --- SISTEMA DE TELEMETRÍA (Escucha para todos los roles) ---
         onSnapshot(doc(db, "telemetria", conductorId), async (docSnapshot) => {
             if (docSnapshot.exists()) {
-                const data = docSnapshot.data();
-                const lat = data.latitud;
-                const lng = data.longitud;
+                const { latitud, longitud } = docSnapshot.data();
 
-                document.getElementById('adminStatus').innerText = `Vehículo Activo | Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
-
+                // 1. Dibuja el auto en vivo en el mapa global
                 if (vehicleMarker) {
-                    vehicleMarker.setLatLng([lat, lng]);
+                    vehicleMarker.setLatLng([latitud, longitud]);
                 } else {
-                    vehicleMarker = L.marker([lat, lng], { icon: carIcon }).addTo(map);
+                    vehicleMarker = L.marker([latitud, longitud], { icon: carIcon }).addTo(map);
                 }
-                map.panTo([lat, lng]);
 
-                // Auditoría: Verifica si la distancia al destino aumenta en lugar de disminuir
-                const distAlDestino = calcularDistancia(lat, lng, destinoPrueba.lat, destinoPrueba.lng);
+                // Centra la cámara en el conductor si está en su panel
+                if(document.getElementById('card-conductor').style.display === 'block') {
+                    map.panTo([latitud, longitud]);
+                }
+
+                // 2. Lógica del Admin (Auditoría Desvíos)
+                document.getElementById('adminStatus').innerHTML = `📡 Vehículo Transmitiendo | Lat: ${latitud.toFixed(4)}, Lng: ${longitud.toFixed(4)}`;
+                const distAlDestino = calcularDistancia(latitud, longitud, destinoPrueba.lat, destinoPrueba.lng);
                 
-                // Margen de tolerancia: si se aleja más de 100 metros (0.1 km) de su última posición
                 if (distanciaAnterior !== null && distAlDestino > distanciaAnterior + 0.1) { 
                     document.getElementById('alertaDesvio').style.display = "block";
-                    
-                    // Registra la infracción en una nueva tabla de auditoría en Firestore
                     await setDoc(doc(db, "auditorias_desvios", `alerta_${Date.now()}`), {
-                        conductor: conductorId,
-                        lat: lat,
-                        lng: lng,
-                        fecha: new Date().toISOString(),
-                        motivo: "Desvío paramétrico de ruta detectado"
+                        conductor: conductorId, lat: latitud, lng: longitud, fecha: new Date().toISOString(), motivo: "Desvío detectado"
                     });
                 } else {
                     document.getElementById('alertaDesvio').style.display = "none";
@@ -408,16 +304,159 @@
             }
         });
 
-        // Sincronización del Panel Admin con el cobro de espera del conductor (Paso 4)
+        // --- LÓGICA DEL CLIENTE ---
+        window.solicitarViaje = async function() {
+            const horaInput = document.getElementById('horaDestino').value;
+            if(!horaInput) return alert("Ingresa la hora límite");
+            
+            const distKm = calcularDistancia(origenCliente.lat, origenCliente.lng, destinoPrueba.lat, destinoPrueba.lng);
+            const tiempoMinutos = Math.round(distKm * 3); 
+            
+            let [horas, minutos] = horaInput.split(':').map(Number);
+            let fecha = new Date();
+            fecha.setHours(horas, minutos - tiempoMinutos, 0);
+            const horaSalida = fecha.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+            
+            document.getElementById('clienteStatus').innerText = `Ruta: ${distKm.toFixed(1)}km. Salida sugerida: ${horaSalida}. Buscando...`;
+            
+            await setDoc(doc(db, "viajes", viajeActivoId), {
+                estado: "buscando_conductor", origen: origenCliente, destino: destinoPrueba, deuda_espera: 0
+            });
+        };
+
+        // Escucha cambios del viaje (Cliente y Admin)
         onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
+                const clientStatus = document.getElementById('clienteStatus');
+                const adminStatus = document.getElementById('adminStatus');
+                
+                // Actualiza UI Cliente
+                if (data.estado === "conductor_en_camino") {
+                    clientStatus.innerHTML = "✅ <b>¡Conductor asignado!</b> Mira el mapa para ver su ubicación en vivo.";
+                    clientStatus.style.background = "#d5f5e3"; clientStatus.style.color = "#27ae60";
+                    map.fitBounds([[    origenCliente.lat, origenCliente.lng], vehicleMarker ? vehicleMarker.getLatLng() : [origenCliente.lat, origenCliente.lng]]);
+                } else if (data.estado === "rechazado_por_tiempo" || data.estado === "rechazado_trafico") {
+                    clientStatus.innerHTML = "⚠️ Viaje rechazado. Solicita otro.";
+                    clientStatus.style.background = "#fadbd8"; clientStatus.style.color = "#c0392b";
+                }
+
+                // Actualiza Deuda Admin
                 if (data.deuda_espera > 0) {
-                    // Refleja el aumento monetario en la pantalla del administrador
-                    document.getElementById('adminStatus').innerHTML = `Vehículo Activo | <span style="color:#d35400">⚠️ Deuda Espera: ${data.deuda_espera} Bs.</span>`;
+                    adminStatus.innerHTML += `<br><span style="color:#d35400">⚠️ Deuda actual por espera: ${data.deuda_espera} Bs.</span>`;
+                }
+
+                // Lógica Conductor: Asignación
+                if (data.estado === "buscando_conductor" && !conductorBloqueado) {
+                    document.getElementById('controlesViaje').style.display = "block";
+                    document.getElementById('conductorStatus').innerText = "⚠️ ¡NUEVO VIAJE! Tienes 30s para aceptar.";
+                    
+                    timerAsignacion = setTimeout(async () => {
+                        document.getElementById('controlesViaje').style.display = "none";
+                        document.getElementById('conductorStatus').innerText = "Viaje perdido (Inactividad).";
+                        await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_por_tiempo" });
+                    }, 30000);
                 }
             }
         });
+
+       // Escucha en vivo el estado del conductor (Sincroniza Conductor y Admin)
+        onSnapshot(doc(db, "conductores", conductorId), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                const btnDesbloquear = document.getElementById('btnDesbloquear');
+                
+                if (data.estado_operativo === false) {
+                    // BLOQUEAR CONDUCTOR
+                    conductorBloqueado = true;
+                    detenerTelemetria();
+                    document.getElementById('alertaBloqueo').style.display = "block";
+                    document.getElementById('btnStartGPS').style.display = "none";
+                    document.getElementById('controlesViaje').style.display = "none";
+                    
+                    // Mostrar control al Administrador
+                    if(btnDesbloquear) btnDesbloquear.style.display = "block";
+                } else {
+                    // DESBLOQUEAR CONDUCTOR
+                    conductorBloqueado = false;
+                    document.getElementById('alertaBloqueo').style.display = "none";
+                    document.getElementById('btnStartGPS').style.display = "block";
+                    
+                    // Ocultar control al Administrador
+                    if(btnDesbloquear) btnDesbloquear.style.display = "none";
+                }
+            }
+        });
+
+        // Función del Admin para levantar el castigo en la base de datos
+        window.desbloquearConductor = async function() {
+            const confirmar = confirm("¿Confirmas que el vehículo ha superado la auditoría física/mecánica?");
+            if (confirmar) {
+                // Actualiza Firestore, lo que disparará automáticamente el onSnapshot anterior
+                await updateDoc(doc(db, "conductores", conductorId), { estado_operativo: true });
+                alert("Conductor reactivado en el sistema.");
+            }
+        };
+
+        window.iniciarTelemetria = async function() {
+            if(conductorBloqueado) return alert("Estás bloqueado.");
+            if ("geolocation" in navigator) {
+                document.getElementById('conductorStatus').innerText = "📡 Transmitiendo GPS...";
+                document.getElementById('conductorStatus').classList.add('gps-active');
+                document.getElementById('btnStartGPS').style.display = "none";
+                document.getElementById('btnStopGPS').style.display = "block";
+
+                watchId = navigator.geolocation.watchPosition(async (position) => {
+                    await setDoc(doc(db, "telemetria", conductorId), {
+                        latitud: position.coords.latitude, longitud: position.coords.longitude, ultima_actualizacion: new Date().toISOString()
+                    });
+                }, (error) => console.error(error), { enableHighAccuracy: true });
+            }
+        };
+
+        window.detenerTelemetria = function() {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            document.getElementById('conductorStatus').innerText = "Estado: Inactivo";
+            document.getElementById('conductorStatus').classList.remove('gps-active');
+            document.getElementById('btnStartGPS').style.display = "block";
+            document.getElementById('btnStopGPS').style.display = "none";
+        };
+
+        window.aceptarViaje = async function() {
+            clearTimeout(timerAsignacion); 
+            document.getElementById('btnAceptar').style.display = "none";
+            document.getElementById('conductorStatus').innerText = "Ruta aceptada. Sigue el trazado en el mapa.";
+            await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "conductor_en_camino" });
+        };
+
+        window.rechazarViaje = async function(motivo) {
+            clearTimeout(timerAsignacion); 
+            if(motivo === 'falla') {
+                conductorBloqueado = true;
+                detenerTelemetria();
+                document.getElementById('alertaBloqueo').style.display = "block";
+                document.getElementById('controlesViaje').style.display = "none";
+                await setDoc(doc(db, "conductores", conductorId), { estado_operativo: false }, { merge: true });
+            } else {
+                alert("Viaje rechazado por tráfico.");
+                document.getElementById('controlesViaje').style.display = "none";
+                await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_trafico" });
+            }
+        };
+
+        window.llegueAlOrigen = function() {
+            clearTimeout(timerAsignacion);
+            alert("Han empezado los 10 segundos de cortesía gratuita.");
+            document.getElementById('montoEsperaBox').style.display = "block";
+            
+            setTimeout(() => {
+                temporizadorEspera = setInterval(async () => {
+                    montoEspera += 2; 
+                    document.getElementById('montoEsperaBox').innerText = `Deuda por espera: ${montoEspera} Bs.`;
+                    await updateDoc(doc(db, "viajes", viajeActivoId), { deuda_espera: montoEspera });
+                }, 5000); 
+            }, 10000); 
+        };
     </script>
 </body>
 </html>
