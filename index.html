@@ -75,7 +75,6 @@
 <body>
 
     <h1>🚖 Plataforma Automatizada de Despacho</h1>
-    <h1>🚖 Plataforma Automatizada de Despacho</h1>
 
     <!-- NUEVO: Menú de Inicio -->
     <div id="login-screen">
@@ -87,28 +86,8 @@
 
     <div class="container">
         
-        <!-- Tarjeta Cliente (Nota el id="card-cliente") -->
+        <!-- VISTA DEL CLIENTE -->
         <div class="card" id="card-cliente">
-            <h2>👤 Panel Cliente</h2>
-            <!-- ... tu código de cliente intacto ... -->
-        </div>
-
-        <!-- Tarjeta Conductor (Nota el id="card-conductor") -->
-        <div class="card" id="card-conductor">
-            <h2>📱 Perfil Conductor</h2>
-            <!-- ... tu código de conductor intacto ... -->
-        </div>
-
-        <!-- Tarjeta Administrador (Nota el id="card-admin") -->
-        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
-            <h2>🖥️ Panel de Monitoreo de Flota</h2>
-            <!-- ... tu código del mapa intacto ... -->
-        </div>
-    </div>
-    <div class="container">
-        
-        <!-- FASE 4: VISTA DEL CLIENTE (Sincronización ETA) -->
-        <div class="card">
             <h2>👤 Panel Cliente</h2>
             <p style="color: #7f8c8d; font-size: 12px;">Planificación Predictiva de Rutas</p>
             <label style="margin-top: 10px; display: block; font-weight: bold;">Hora límite de llegada a destino:</label>
@@ -117,8 +96,8 @@
             <div id="clienteStatus" class="status-box">Esperando solicitud...</div>
         </div>
 
-        <!-- FASE 4: VISTA DEL CONDUCTOR (Rechazos y Cobros) -->
-        <div class="card">
+        <!-- VISTA DEL CONDUCTOR -->
+        <div class="card" id="card-conductor">
             <h2>📱 Perfil Conductor</h2>
             <div id="conductorStatus" class="status-box">Estado: Inactivo</div>
             <div id="alertaBloqueo" class="alert-box">BLOQUEADO: Auditoría física requerida.</div>
@@ -136,17 +115,14 @@
             <div id="montoEsperaBox" class="status-box" style="display:none; background: #fef9e7; color: #d35400;">Deuda por espera: 0 Bs.</div>
         </div>
 
-        <!-- FASE 3: VISTA DEL ADMINISTRADOR (Mapa) -->
-        <div class="card" style="flex: 2; min-width: 100%;">
+        <!-- VISTA DEL ADMINISTRADOR -->
+        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
             <h2>🖥️ Panel de Monitoreo de Flota</h2>
             <div id="adminStatus" class="status-box">Esperando coordenadas...</div>
             <div id="alertaDesvio" class="alert-box">¡ALERTA! Posible desvío de ruta detectado.</div>
             <div id="map"></div>
         </div>
     </div>
-
-    <!-- Librería Leaflet (Mapas) -->
-    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- FASE 1: Integración con Firebase -->
     <script type="module">
