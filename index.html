@@ -62,12 +62,49 @@
         75% { transform: translateX(-5px); }
         100% { transform: translateX(0); }
     }
+    /* --- NUEVO: Pantalla de Selección de Rol --- */
+    #login-screen { text-align: center; margin-top: 50px; animation: fadeIn 0.5s; }
+    .role-btn { display: inline-block; width: 250px; margin: 15px; padding: 20px; font-size: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    
+    /* Ocultar las tarjetas de trabajo por defecto */
+    .card { display: none; }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>
 </head>
 <body>
 
     <h1>🚖 Plataforma Automatizada de Despacho</h1>
+    <h1>🚖 Plataforma Automatizada de Despacho</h1>
 
+    <!-- NUEVO: Menú de Inicio -->
+    <div id="login-screen">
+        <h2 style="color: #34495e; margin-bottom: 20px;">Seleccione su Perfil de Acceso</h2>
+        <button class="btn-blue role-btn" onclick="seleccionarRol('cliente')">👤 Portal Cliente</button>
+        <button class="btn-green role-btn" onclick="seleccionarRol('conductor')">📱 App Conductor</button>
+        <button class="btn-warning role-btn" onclick="seleccionarRol('admin')">🖥️ Central de Monitoreo</button>
+    </div>
+
+    <div class="container">
+        
+        <!-- Tarjeta Cliente (Nota el id="card-cliente") -->
+        <div class="card" id="card-cliente">
+            <h2>👤 Panel Cliente</h2>
+            <!-- ... tu código de cliente intacto ... -->
+        </div>
+
+        <!-- Tarjeta Conductor (Nota el id="card-conductor") -->
+        <div class="card" id="card-conductor">
+            <h2>📱 Perfil Conductor</h2>
+            <!-- ... tu código de conductor intacto ... -->
+        </div>
+
+        <!-- Tarjeta Administrador (Nota el id="card-admin") -->
+        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
+            <h2>🖥️ Panel de Monitoreo de Flota</h2>
+            <!-- ... tu código del mapa intacto ... -->
+        </div>
+    </div>
     <div class="container">
         
         <!-- FASE 4: VISTA DEL CLIENTE (Sincronización ETA) -->
@@ -148,7 +185,25 @@
         let montoEspera = 0;
         let distanciaAnterior = null;
         const destinoPrueba = { lat: -17.7700, lng: -63.1800 }; // Coordenadas ficticias del destino
-
+        // --- NUEVO: Lógica de Separación de Interfaces (Pilar A) ---
+        window.seleccionarRol = function(rol) {
+            // 1. Ocultar el menú de inicio
+            document.getElementById('login-screen').style.display = 'none';
+            
+            // 2. Mostrar solo la interfaz seleccionada
+            if(rol === 'cliente') {
+                document.getElementById('card-cliente').style.display = 'block';
+            } 
+            else if(rol === 'conductor') {
+                document.getElementById('card-conductor').style.display = 'block';
+            } 
+            else if(rol === 'admin') {
+                document.getElementById('card-admin').style.display = 'block';
+                // Truco vital: Leaflet se "rompe" si el mapa carga estando oculto. 
+                // Esto fuerza al mapa a recalcular su tamaño al volverse visible.
+                setTimeout(() => { map.invalidateSize(); }, 200);
+            }
+        };
         // --- LÓGICA DEL CLIENTE: ETA Inverso (FASE 4) ---
         window.solicitarViaje = function() {
             const horaInput = document.getElementById('horaDestino').value;
