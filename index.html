@@ -134,6 +134,13 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         let vehicleMarker = null;
 
+        // 🌟 AQUÍ ESTÁ EL CÓDIGO FALTANTE: CREAR ICONO DE AUTO
+        const carIcon = L.divIcon({
+            html: '<div style="font-size: 35px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.4)); transform: scaleX(-1);">🚖</div>',
+            className: 'custom-car-icon',
+            iconSize: [35, 35],
+            iconAnchor: [17, 17]
+        });
         // Variables Globales
         let watchId = null;
         let conductorBloqueado = false;
