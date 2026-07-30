@@ -181,7 +181,7 @@
                         longitud: longitude,
                         ultima_actualizacion: new Date().toISOString()
                     });
-                }, (error) => alert("Error de GPS: " + error.message), { enableHighAccuracy: true, timeout: 10000 });
+                }, (error) => alert("Error de GPS: " + error.message), { enableHighAccuracy: false, timeout: 10000 });
             }
         };
 
