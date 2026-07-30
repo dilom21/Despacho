@@ -62,32 +62,16 @@
         75% { transform: translateX(-5px); }
         100% { transform: translateX(0); }
     }
-    /* --- NUEVO: Pantalla de Selección de Rol --- */
-    #login-screen { text-align: center; margin-top: 50px; animation: fadeIn 0.5s; }
-    .role-btn { display: inline-block; width: 250px; margin: 15px; padding: 20px; font-size: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
-    
-    /* Ocultar las tarjetas de trabajo por defecto */
-    .card { display: none; }
-    
-    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>
 </head>
 <body>
 
     <h1>🚖 Plataforma Automatizada de Despacho</h1>
 
-    <!-- NUEVO: Menú de Inicio -->
-    <div id="login-screen">
-        <h2 style="color: #34495e; margin-bottom: 20px;">Seleccione su Perfil de Acceso</h2>
-        <button class="btn-blue role-btn" onclick="seleccionarRol('cliente')">👤 Portal Cliente</button>
-        <button class="btn-green role-btn" onclick="seleccionarRol('conductor')">📱 App Conductor</button>
-        <button class="btn-warning role-btn" onclick="seleccionarRol('admin')">🖥️ Central de Monitoreo</button>
-    </div>
-
     <div class="container">
         
-        <!-- VISTA DEL CLIENTE -->
-        <div class="card" id="card-cliente">
+        <!-- FASE 4: VISTA DEL CLIENTE (Sincronización ETA) -->
+        <div class="card">
             <h2>👤 Panel Cliente</h2>
             <p style="color: #7f8c8d; font-size: 12px;">Planificación Predictiva de Rutas</p>
             <label style="margin-top: 10px; display: block; font-weight: bold;">Hora límite de llegada a destino:</label>
@@ -96,8 +80,8 @@
             <div id="clienteStatus" class="status-box">Esperando solicitud...</div>
         </div>
 
-        <!-- VISTA DEL CONDUCTOR -->
-        <div class="card" id="card-conductor">
+        <!-- FASE 4: VISTA DEL CONDUCTOR (Rechazos y Cobros) -->
+        <div class="card">
             <h2>📱 Perfil Conductor</h2>
             <div id="conductorStatus" class="status-box">Estado: Inactivo</div>
             <div id="alertaBloqueo" class="alert-box">BLOQUEADO: Auditoría física requerida.</div>
@@ -115,14 +99,17 @@
             <div id="montoEsperaBox" class="status-box" style="display:none; background: #fef9e7; color: #d35400;">Deuda por espera: 0 Bs.</div>
         </div>
 
-        <!-- VISTA DEL ADMINISTRADOR -->
-        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
+        <!-- FASE 3: VISTA DEL ADMINISTRADOR (Mapa) -->
+        <div class="card" style="flex: 2; min-width: 100%;">
             <h2>🖥️ Panel de Monitoreo de Flota</h2>
             <div id="adminStatus" class="status-box">Esperando coordenadas...</div>
             <div id="alertaDesvio" class="alert-box">¡ALERTA! Posible desvío de ruta detectado.</div>
             <div id="map"></div>
         </div>
     </div>
+
+    <!-- Librería Leaflet (Mapas) -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <!-- FASE 1: Integración con Firebase -->
     <script type="module">
@@ -130,15 +117,14 @@
         import { getFirestore, doc, setDoc, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 
         // PEGA TUS CREDENCIALES DE FIREBASE AQUÍ
-       const firebaseConfig = {
-            apiKey: "AIzaSyAgEX6gSM10oX4L9HtL2krFL4rOrvGqgRU",
-            authDomain: "despacho-1eef3.firebaseapp.com",
-            projectId: "despacho-1eef3",
-            storageBucket: "despacho-1eef3.firebasestorage.app",
-            messagingSenderId: "51256065309",
-            appId: "1:51256065309:web:6b3584573524a3315d75f4"
-            };
-
+        const firebaseConfig = {
+        apiKey: "AIzaSyAgEX6gSM10oX4L9HtL2krFL4rOrvGqgRU",
+        authDomain: "despacho-1eef3.firebaseapp.com",
+        projectId: "despacho-1eef3",
+        storageBucket: "despacho-1eef3.firebasestorage.app",
+        messagingSenderId: "51256065309",
+        appId: "1:51256065309:web:6b3584573524a3315d75f4"
+        };
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
 
@@ -147,13 +133,14 @@
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19 }).addTo(map);
         let vehicleMarker = null;
 
-        // 🌟 AQUÍ ESTÁ EL CÓDIGO FALTANTE: CREAR ICONO DE AUTO
+        // 🌟 CREAR ICONO DE AUTO PERSONALIZADO
         const carIcon = L.divIcon({
             html: '<div style="font-size: 35px; filter: drop-shadow(2px 4px 6px rgba(0,0,0,0.4)); transform: scaleX(-1);">🚖</div>',
             className: 'custom-car-icon',
             iconSize: [35, 35],
-            iconAnchor: [17, 17]
+            iconAnchor: [17, 17] // Centro del icono
         });
+
         // Variables Globales
         let watchId = null;
         let conductorBloqueado = false;
@@ -161,25 +148,7 @@
         let montoEspera = 0;
         let distanciaAnterior = null;
         const destinoPrueba = { lat: -17.7700, lng: -63.1800 }; // Coordenadas ficticias del destino
-        // --- NUEVO: Lógica de Separación de Interfaces (Pilar A) ---
-        window.seleccionarRol = function(rol) {
-            // 1. Ocultar el menú de inicio
-            document.getElementById('login-screen').style.display = 'none';
-            
-            // 2. Mostrar solo la interfaz seleccionada
-            if(rol === 'cliente') {
-                document.getElementById('card-cliente').style.display = 'block';
-            } 
-            else if(rol === 'conductor') {
-                document.getElementById('card-conductor').style.display = 'block';
-            } 
-            else if(rol === 'admin') {
-                document.getElementById('card-admin').style.display = 'block';
-                // Truco vital: Leaflet se "rompe" si el mapa carga estando oculto. 
-                // Esto fuerza al mapa a recalcular su tamaño al volverse visible.
-                setTimeout(() => { map.invalidateSize(); }, 200);
-            }
-        };
+
         // --- LÓGICA DEL CLIENTE: ETA Inverso (FASE 4) ---
         window.solicitarViaje = function() {
             const horaInput = document.getElementById('horaDestino').value;
@@ -219,7 +188,7 @@
                         longitud: longitude,
                         ultima_actualizacion: new Date().toISOString()
                     });
-                }, (error) => alert("Error de GPS: " + error.message), { enableHighAccuracy: false, timeout: 10000 });
+                }, (error) => console.error(error), { enableHighAccuracy: true });
             }
         };
 
