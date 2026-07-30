@@ -62,16 +62,36 @@
         75% { transform: translateX(-5px); }
         100% { transform: translateX(0); }
     }
+    /* --- MENÚ DE ROLES Y NAVEGACIÓN --- */
+    #login-screen { text-align: center; margin-top: 50px; animation: fadeIn 0.5s; }
+    .role-btn { display: inline-block; width: 250px; margin: 15px; padding: 20px; font-size: 18px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    
+    /* Ocultar las tarjetas de trabajo por defecto */
+    .card { display: none; }
+    
+    .btn-volver { background: #95a5a6; width: auto; padding: 8px 15px; margin-bottom: 15px; font-size: 12px; }
+    .btn-volver:hover { background: #7f8c8d; transform: scale(1.02); }
+    
+    @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 </style>
 </head>
 <body>
 
     <h1>🚖 Plataforma Automatizada de Despacho</h1>
 
+    <!-- MENÚ DE INICIO -->
+    <div id="login-screen">
+        <h2 style="color: #34495e; margin-bottom: 20px;">Seleccione su Perfil de Acceso</h2>
+        <button class="btn-blue role-btn" onclick="seleccionarRol('cliente')">👤 Portal Cliente</button>
+        <button class="btn-green role-btn" onclick="seleccionarRol('conductor')">📱 App Conductor</button>
+        <button class="btn-warning role-btn" onclick="seleccionarRol('admin')">🖥️ Central de Monitoreo</button>
+    </div>
+
     <div class="container">
         
-        <!-- FASE 4: VISTA DEL CLIENTE (Sincronización ETA) -->
-        <div class="card">
+        <!-- VISTA DEL CLIENTE -->
+        <div class="card" id="card-cliente">
+            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
             <h2>👤 Panel Cliente</h2>
             <p style="color: #7f8c8d; font-size: 12px;">Planificación Predictiva de Rutas</p>
             <label style="margin-top: 10px; display: block; font-weight: bold;">Hora límite de llegada a destino:</label>
@@ -80,8 +100,9 @@
             <div id="clienteStatus" class="status-box">Esperando solicitud...</div>
         </div>
 
-        <!-- FASE 4: VISTA DEL CONDUCTOR (Rechazos y Cobros) -->
-        <div class="card">
+        <!-- VISTA DEL CONDUCTOR -->
+        <div class="card" id="card-conductor">
+            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
             <h2>📱 Perfil Conductor</h2>
             <div id="conductorStatus" class="status-box">Estado: Inactivo</div>
             <div id="alertaBloqueo" class="alert-box">BLOQUEADO: Auditoría física requerida.</div>
@@ -90,6 +111,7 @@
             <button id="btnStopGPS" class="btn-red" onclick="detenerTelemetria()" style="display:none;">Detener Transmisión</button>
             
             <div id="controlesViaje" style="display:none; margin-top: 15px; border-top: 1px solid #eee; padding-top: 10px;">
+                <button id="btnAceptar" class="btn-green" onclick="aceptarViaje()" style="margin-bottom: 10px;">✅ Aceptar Viaje</button>
                 <button class="btn-blue" onclick="llegueAlOrigen()">📍 Llegué al Origen (Iniciar Espera)</button>
                 <div style="display: flex; gap: 5px;">
                     <button class="btn-warning" onclick="rechazarViaje('trafico')">Rechazar (Tráfico)</button>
@@ -99,14 +121,42 @@
             <div id="montoEsperaBox" class="status-box" style="display:none; background: #fef9e7; color: #d35400;">Deuda por espera: 0 Bs.</div>
         </div>
 
-        <!-- FASE 3: VISTA DEL ADMINISTRADOR (Mapa) -->
-        <div class="card" style="flex: 2; min-width: 100%;">
+        <!-- VISTA DEL ADMINISTRADOR -->
+        <div class="card" id="card-admin" style="flex: 2; min-width: 100%;">
+            <button class="btn-volver" onclick="volverInicio()">🔙 Volver al Inicio</button>
             <h2>🖥️ Panel de Monitoreo de Flota</h2>
             <div id="adminStatus" class="status-box">Esperando coordenadas...</div>
             <div id="alertaDesvio" class="alert-box">¡ALERTA! Posible desvío de ruta detectado.</div>
             <div id="map"></div>
         </div>
     </div>
+
+    <!-- SCRIPT DE NAVEGACIÓN VISUAL (Fuera del Módulo) -->
+    <script>
+        function seleccionarRol(rol) {
+            // 1. Ocultar el menú de inicio
+            document.getElementById('login-screen').style.display = 'none';
+            
+            // 2. Mostrar solo la interfaz seleccionada
+            if(rol === 'cliente') document.getElementById('card-cliente').style.display = 'block';
+            if(rol === 'conductor') document.getElementById('card-conductor').style.display = 'block';
+            if(rol === 'admin') {
+                document.getElementById('card-admin').style.display = 'block';
+                // Truco vital: Fuerza al mapa a recalcular su tamaño al volverse visible
+                setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
+            }
+        }
+
+        function volverInicio() {
+            // Ocultar todas las tarjetas
+            document.getElementById('card-cliente').style.display = 'none';
+            document.getElementById('card-conductor').style.display = 'none';
+            document.getElementById('card-admin').style.display = 'none';
+            
+            // Mostrar menú principal
+            document.getElementById('login-screen').style.display = 'block';
+        }
+    </script>
 
     <!-- Librería Leaflet (Mapas) -->
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
@@ -148,24 +198,87 @@
         let montoEspera = 0;
         let distanciaAnterior = null;
         const destinoPrueba = { lat: -17.7700, lng: -63.1800 }; // Coordenadas ficticias del destino
+        // --- NUEVAS VARIABLES GLOBALES ---
+        const viajeActivoId = "viaje_01";
+        const conductorId = "conductor_01";
+        let timerAsignacion = null;
 
-        // --- LÓGICA DEL CLIENTE: ETA Inverso (FASE 4) ---
-        window.solicitarViaje = function() {
+        // Verificar permanentemente si el conductor está bloqueado en BD
+        onSnapshot(doc(db, "conductores", conductorId), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                if (data.estado_operativo === false) {
+                    conductorBloqueado = true;
+                    detenerTelemetria();
+                    document.getElementById('alertaBloqueo').style.display = "block";
+                    document.getElementById('btnStartGPS').style.display = "none";
+                    document.getElementById('controlesViaje').style.display = "none";
+                }
+            }
+        });
+
+        // Fórmula Haversine para distancias reales (Paso 3 y 5)
+        function calcularDistancia(lat1, lon1, lat2, lon2) {
+            const R = 6371; // Radio de la Tierra en km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLon = (lon2 - lon1) * Math.PI / 180;
+            const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLon/2) * Math.sin(dLon/2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+            return R * c; // Devuelve la distancia en kilómetros
+        }
+        // --- LÓGICA DEL CLIENTE ---
+        window.solicitarViaje = async function() {
             const horaInput = document.getElementById('horaDestino').value;
             if(!horaInput) return alert("Ingresa una hora válida");
             
-            // Simular resta de 45 minutos para el tiempo de viaje
+            // PASO 3: Planificación Predictiva (ETA Dinámico)
+            const origenPrueba = { lat: -17.7833, lng: -63.1821 };
+            const distKm = calcularDistancia(origenPrueba.lat, origenPrueba.lng, destinoPrueba.lat, destinoPrueba.lng);
+            const tiempoMinutos = Math.round(distKm * 3); // Simula velocidad urbana: 3 min por kilómetro
+            
             let [horas, minutos] = horaInput.split(':').map(Number);
             let fecha = new Date();
-            fecha.setHours(horas, minutos - 45, 0);
-            
+            fecha.setHours(horas, minutos - tiempoMinutos, 0);
             const horaSalida = fecha.toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
-            document.getElementById('clienteStatus').innerText = `Viaje confirmado. Recogida a las ${horaSalida}`;
             
-            // Simular asignación al conductor
-            if(!conductorBloqueado) {
-                document.getElementById('controlesViaje').style.display = "block";
+            document.getElementById('clienteStatus').innerText = `Ruta de ${distKm.toFixed(1)}km. Recogida ideal: ${horaSalida}. Buscando conductor...`;
+            
+            // PASO 1: Creación del viaje en la Base de Datos
+            await setDoc(doc(db, "viajes", viajeActivoId), {
+                estado: "buscando_conductor",
+                origen: origenPrueba,
+                destino: destinoPrueba,
+                deuda_espera: 0
+            });
+        };
+
+        // --- FEEDBACK EN TIEMPO REAL PARA EL CLIENTE ---
+        onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                const statusDiv = document.getElementById('clienteStatus');
+                
+                if (data.estado === "conductor_en_camino") {
+                    statusDiv.innerHTML = "✅ <b>¡Conductor asignado!</b> Va en camino hacia tu ubicación.";
+                    statusDiv.style.background = "#d5f5e3";
+                    statusDiv.style.color = "#27ae60";
+                } else if (data.estado === "rechazado_por_tiempo" || data.estado === "rechazado_trafico") {
+                    statusDiv.innerHTML = "⚠️ Viaje rechazado. Por favor, solicita un nuevo viaje.";
+                    statusDiv.style.background = "#fadbd8";
+                    statusDiv.style.color = "#c0392b";
+                }
             }
+        });
+
+        window.aceptarViaje = async function() {
+            clearTimeout(timerAsignacion); // Detiene el contador de 30s
+            document.getElementById('btnAceptar').style.display = "none";
+            document.getElementById('conductorStatus').innerText = "Ruta aceptada. Dirígete al origen.";
+            
+            // Actualiza la base de datos
+            await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "conductor_en_camino" });
         };
 
         // --- LÓGICA DEL CONDUCTOR (FASE 3 y 4) ---
@@ -201,35 +314,64 @@
             document.getElementById('btnStopGPS').style.display = "none";
         };
 
-        // Rechazo y Bloqueo de Conductor
-        window.rechazarViaje = function(motivo) {
+        // PASO 1: Despacho Geolocalizado (Temporizador de 30s)
+        onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                if (data.estado === "buscando_conductor" && !conductorBloqueado) {
+                    document.getElementById('controlesViaje').style.display = "block";
+                    document.getElementById('conductorStatus').innerText = "⚠️ ¡NUEVO VIAJE! Tienes 30s para aceptar.";
+                    
+                    // Inicia el temporizador de 30 segundos
+                    timerAsignacion = setTimeout(async () => {
+                        document.getElementById('controlesViaje').style.display = "none";
+                        document.getElementById('conductorStatus').innerText = "Viaje rechazado por inactividad.";
+                        await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_por_tiempo" });
+                    }, 30000);
+                }
+            }
+        });
+        // PASO 2: Auditoría de Rechazos (Bloqueo Preventivo real en BD)
+        window.rechazarViaje = async function(motivo) {
+            clearTimeout(timerAsignacion); // Detiene el contador de 30s
             if(motivo === 'falla') {
                 conductorBloqueado = true;
                 detenerTelemetria();
                 document.getElementById('alertaBloqueo').style.display = "block";
                 document.getElementById('controlesViaje').style.display = "none";
-                document.getElementById('btnStartGPS').style.display = "none";
+                
+                // Escribe el bloqueo en Firestore
+                await setDoc(doc(db, "conductores", conductorId), { estado_operativo: false }, { merge: true });
             } else {
-                alert("Viaje rechazado por tráfico. Buscando otro conductor...");
+                alert("Viaje rechazado por tráfico.");
                 document.getElementById('controlesViaje').style.display = "none";
+                await updateDoc(doc(db, "viajes", viajeActivoId), { estado: "rechazado_trafico" });
             }
         };
 
-        // Penalización por tiempo de espera
+        // PASO 4: Contador de Espera Monetizado y Sincronizado
         window.llegueAlOrigen = function() {
-            alert("Has llegado. Tienes 10 segundos de cortesía antes de aplicar recargos.");
+            clearTimeout(timerAsignacion);
+            alert("Has llegado. Tienes 10 segundos de cortesía.");
             document.getElementById('montoEsperaBox').style.display = "block";
             
             setTimeout(() => {
-                temporizadorEspera = setInterval(() => {
-                    montoEspera += 2; // Suma 2 Bs
+                temporizadorEspera = setInterval(async () => {
+                    montoEspera += 2; 
                     document.getElementById('montoEsperaBox').innerText = `Deuda por espera: ${montoEspera} Bs.`;
-                }, 5000); // Cobra cada 5 segundos para la simulación
-            }, 10000); // 10 segundos de cortesía
+                    // Sincroniza la deuda en vivo con Firestore
+                    await updateDoc(doc(db, "viajes", viajeActivoId), { deuda_espera: montoEspera });
+                }, 5000); 
+            }, 10000); 
         };
 
-        // --- LÓGICA DEL ADMINISTRADOR (FASE 3 y 4) ---
-        onSnapshot(doc(db, "telemetria", "conductor_01"), (docSnapshot) => {
+        // --- LÓGICA DEL ADMINISTRADOR ---
+        
+        // Dibuja la ruta ideal paramétrica en el mapa (Paso 5)
+        const rutaIdeal = L.polyline([[-17.7833, -63.1821], [destinoPrueba.lat, destinoPrueba.lng]], {color: '#3498db', weight: 4}).addTo(map);
+
+        // PASO 5: Navegación y Auditoría de Desvíos
+        onSnapshot(doc(db, "telemetria", conductorId), async (docSnapshot) => {
             if (docSnapshot.exists()) {
                 const data = docSnapshot.data();
                 const lat = data.latitud;
@@ -237,27 +379,43 @@
 
                 document.getElementById('adminStatus').innerText = `Vehículo Activo | Lat: ${lat.toFixed(4)}, Lng: ${lng.toFixed(4)}`;
 
-                // Dentro del onSnapshot...
                 if (vehicleMarker) {
                     vehicleMarker.setLatLng([lat, lng]);
                 } else {
-                    // Aquí le inyectamos el icono del auto { icon: carIcon }
-                    vehicleMarker = L.marker([lat, lng], { icon: carIcon })
-                        .addTo(map)
-                        .bindPopup("<b>🚖 Vehículo 01</b><br>Operativo en ruta.")
-                        .openPopup();
+                    vehicleMarker = L.marker([lat, lng], { icon: carIcon }).addTo(map);
                 }
-                
                 map.panTo([lat, lng]);
 
-                // Simulación de Auditoría de Desvíos (Haversine simple)
-                const distActual = Math.sqrt(Math.pow(lat - destinoPrueba.lat, 2) + Math.pow(lng - destinoPrueba.lng, 2));
-                if (distanciaAnterior !== null && distActual > distanciaAnterior + 0.0005) {
+                // Auditoría: Verifica si la distancia al destino aumenta en lugar de disminuir
+                const distAlDestino = calcularDistancia(lat, lng, destinoPrueba.lat, destinoPrueba.lng);
+                
+                // Margen de tolerancia: si se aleja más de 100 metros (0.1 km) de su última posición
+                if (distanciaAnterior !== null && distAlDestino > distanciaAnterior + 0.1) { 
                     document.getElementById('alertaDesvio').style.display = "block";
+                    
+                    // Registra la infracción en una nueva tabla de auditoría en Firestore
+                    await setDoc(doc(db, "auditorias_desvios", `alerta_${Date.now()}`), {
+                        conductor: conductorId,
+                        lat: lat,
+                        lng: lng,
+                        fecha: new Date().toISOString(),
+                        motivo: "Desvío paramétrico de ruta detectado"
+                    });
                 } else {
                     document.getElementById('alertaDesvio').style.display = "none";
                 }
-                distanciaAnterior = distActual;
+                distanciaAnterior = distAlDestino;
+            }
+        });
+
+        // Sincronización del Panel Admin con el cobro de espera del conductor (Paso 4)
+        onSnapshot(doc(db, "viajes", viajeActivoId), (docSnapshot) => {
+            if (docSnapshot.exists()) {
+                const data = docSnapshot.data();
+                if (data.deuda_espera > 0) {
+                    // Refleja el aumento monetario en la pantalla del administrador
+                    document.getElementById('adminStatus').innerHTML = `Vehículo Activo | <span style="color:#d35400">⚠️ Deuda Espera: ${data.deuda_espera} Bs.</span>`;
+                }
             }
         });
     </script>
