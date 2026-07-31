@@ -1,0 +1,47 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // =================================================================
+    // Sistema de Despacho y Telemetría Vehicular — Reglas Endurecidas
+    // -----------------------------------------------------------------
+    // Requisitos de despliegue en Firebase Console:
+    //   1) Authentication > Sign-in method > EMAIL/PASSWORD: habilitado.
+    //   2) Authentication > Sign-in method > ANONYMOUS: HABILITADO
+    //      (el Cliente entra sin registro como usuario anónimo).
+    //   3) Crear la cuenta del Admin con el correo: admin@despacho.com
+    //      (debe coincidir con la constante ADMIN_EMAIL del código).
+    // =================================================================
+
+    function isAdmin() {
+      return request.auth != null &&
+             request.auth.token.email != null &&
+             request.auth.token.email.lower() == 'admin@despacho.com';
+    }
+
+    match /telemetria/{uid} {
+      // Cualquier usuario autenticado (Cliente anónimo, Conductor, Admin) lee la flota.
+      allow read: if request.auth != null;
+      // El Conductor escribe SOLO su propio documento; el Admin bloquea/desbloquea.
+      allow write: if request.auth != null && (request.auth.uid == uid || isAdmin());
+    }
+
+    match /viajes/{viajeId} {
+      // El Cliente (anónimo) crea y lee sus viajes; el Conductor lee los asignados.
+      allow read, create: if request.auth != null;
+      // Solo el Conductor asignado o el Admin pueden modificar un viaje.
+      allow update: if request.auth != null && (
+        request.resource.data.conductor_asignado == request.auth.uid ||
+        isAdmin()
+      );
+      allow delete: if isAdmin();
+    }
+
+    match /auditorias_desvios/{auditoriaId} {
+      // Registro histórico de desvíos y fallas mecánicas.
+      allow read, create: if request.auth != null;
+      allow update, delete: if isAdmin();
+    }
+  }
+}
