@@ -61,7 +61,7 @@
             
             <button id="btn-login" style="background: #3498db; margin-bottom: 12px;">Iniciar Sesión</button>
             <button id="btn-registro" style="background: #2ecc71;">Registrar Nuevo</button>
-            <button onclick="document.getElementById('panel-login-conductor').style.display='none';" style="background: none; border: none; color: #95a5a6; margin-top: 20px; text-decoration: underline;">Cancelar</button>
+            <button onclick="volverInicio()" style="background: none; border: none; color: #95a5a6; margin-top: 20px; text-decoration: underline;">← Volver al inicio</button>
         </div>
     </div>
 
@@ -76,7 +76,7 @@
             <input type="password" id="pass-admin" placeholder="🔒 Contraseña" style="margin-bottom: 25px;">
             
             <button id="btn-login-admin" style="background: #f39c12; margin-bottom: 12px;">Ingresar</button>
-            <button onclick="document.getElementById('panel-login-admin').style.display='none';" style="background: none; border: none; color: #95a5a6; margin-top: 20px; text-decoration: underline;">Cancelar</button>
+            <button onclick="volverInicio()" style="background: none; border: none; color: #95a5a6; margin-top: 20px; text-decoration: underline;">← Volver al inicio</button>
         </div>
     </div>
 
@@ -249,6 +249,8 @@
         }
 
         window.volverInicio = function() {
+            document.getElementById('panel-login-conductor').style.display = 'none';
+            document.getElementById('panel-login-admin').style.display = 'none';
             document.getElementById('card-cliente').style.display = 'none';
             document.getElementById('card-conductor').style.display = 'none';
             document.getElementById('card-admin').style.display = 'none';
