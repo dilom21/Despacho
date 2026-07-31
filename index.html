@@ -9,15 +9,15 @@
     * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; margin: 0; padding: 0; }
     body, html { height: 100%; overflow: hidden; background-color: #e4e9f2; }
     #map { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1; }
-    .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; justify-content: flex-end; }
+    .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 1000; pointer-events: none; display: flex; flex-direction: column; justify-content: center; align-items: flex-end; padding-right: 24px; }
     
     #btn-volver-global { position: absolute; top: 25px; left: 25px; z-index: 1001; pointer-events: auto; background: white; color: #2c3e50; border-radius: 50%; width: 50px; height: 50px; font-size: 24px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); cursor: pointer; border: none; display: none; transition: transform 0.2s ease, background 0.2s ease; padding: 0; justify-content: center; align-items: center; }
     #btn-volver-global:hover { transform: scale(1.1); background: #f8f9fa; }
 
-    #login-screen { pointer-events: auto; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 40px; border-radius: 24px; text-align: center; margin: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 90%; max-width: 400px; animation: fadeIn 0.4s ease-out; }
+    #login-screen { pointer-events: auto; background: rgba(255, 255, 255, 0.95); backdrop-filter: blur(10px); padding: 40px; border-radius: 20px; text-align: center; margin: auto 0; box-shadow: 0 10px 40px rgba(0,0,0,0.2); width: 100%; max-width: 400px; max-height: calc(100vh - 48px); overflow-y: auto; animation: fadeIn 0.4s ease-out; }
     #login-screen h2 { color: #1a252f; margin-bottom: 25px; font-size: 22px; }
 
-    .card { pointer-events: auto; background: #ffffff; border-radius: 24px 24px 0 0; padding: 30px 25px; box-shadow: 0 -10px 30px rgba(0,0,0,0.1); display: none; width: 100%; max-width: 600px; margin: 0 auto; animation: slideUp 0.4s ease-out; border-top: 5px solid #3498db; }
+    .card { pointer-events: auto; background: #ffffff; border-radius: 20px; padding: 30px 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.15); display: none; width: 100%; max-width: 420px; max-height: calc(100vh - 48px); overflow-y: auto; margin: auto 0; animation: slideInRight 0.4s ease-out; border-top: 5px solid #3498db; }
     h2 { color: #2c3e50; font-size: 20px; margin-bottom: 5px; }
     p { color: #7f8c8d; font-size: 13px; margin-bottom: 15px; }
     
@@ -37,6 +37,7 @@
     input[type="time"]:focus, input[type="text"]:focus, input[type="email"]:focus, input[type="password"]:focus { border: 2px solid #3498db; background: #fff; }
 
     @keyframes slideUp { from { transform: translateY(100%); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    @keyframes slideInRight { from { transform: translateX(100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
     @keyframes fadeIn { from { opacity: 0; transform: scale(0.9); } to { opacity: 1; transform: scale(1); } }
     @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0.5); } 70% { box-shadow: 0 0 0 10px rgba(46, 204, 113, 0); } 100% { box-shadow: 0 0 0 0 rgba(46, 204, 113, 0); } }
     .gps-active { animation: pulse-green 1.5s infinite; background: #d5f5e3; color: #27ae60; border-left-color: #27ae60; }
@@ -216,9 +217,18 @@
         let montoEspera = 0;
 
         // --- SISTEMA DE NAVEGACIÓN UI ---
+        function ocultarTodoUI() {
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('card-cliente').style.display = 'none';
+            document.getElementById('card-conductor').style.display = 'none';
+            document.getElementById('card-admin').style.display = 'none';
+            document.getElementById('panel-login-conductor').style.display = 'none';
+            document.getElementById('panel-login-admin').style.display = 'none';
+        }
+
         window.seleccionarRol = function(rol) {
             window.rolActual = rol;
-            document.getElementById('login-screen').style.display = 'none';
+            ocultarTodoUI();
             document.getElementById('btn-volver-global').style.display = 'flex';
             
             if(rol === 'cliente') {
@@ -249,11 +259,7 @@
         }
 
         window.volverInicio = function() {
-            document.getElementById('panel-login-conductor').style.display = 'none';
-            document.getElementById('panel-login-admin').style.display = 'none';
-            document.getElementById('card-cliente').style.display = 'none';
-            document.getElementById('card-conductor').style.display = 'none';
-            document.getElementById('card-admin').style.display = 'none';
+            ocultarTodoUI();
             document.getElementById('btn-volver-global').style.display = 'none';
             document.getElementById('login-screen').style.display = 'block';
             map.setView([-17.7833, -63.1821], 14);
@@ -312,7 +318,7 @@
                 clearTimeout(timerAsignacion);
                 document.getElementById('panel-login-admin').style.opacity = '0';
                 setTimeout(() => { document.getElementById('panel-login-admin').style.display = 'none'; }, 300);
-                document.getElementById('login-screen').style.display = 'none';
+                ocultarTodoUI();
                 document.getElementById('btn-volver-global').style.display = 'flex';
                 document.getElementById('card-admin').style.display = 'block';
                 map.fitBounds([[origenCliente.lat, origenCliente.lng], [destinoViaje.lat, destinoViaje.lng]]);
@@ -330,7 +336,7 @@
                 panelLogin.style.opacity = '0';
                 setTimeout(() => { panelLogin.style.display = 'none'; }, 300);
                 
-                document.getElementById('login-screen').style.display = 'none';
+                ocultarTodoUI();
                 document.getElementById('btn-volver-global').style.display = 'flex';
                 document.getElementById('card-conductor').style.display = 'block';
 
@@ -436,16 +442,28 @@
             const container = document.getElementById('choferesList');
             const box = document.getElementById('listaChoferes');
             if (!container || !origenCliente) return;
-            const disponibles = Object.entries(window.flotaGlobal)
-                .filter(([, d]) => d.estado_operativo && d.lat && d.lng)
-                .map(([uid, d]) => ({ uid, nombre: d.nombre, dist: calcularDistancia(origenCliente.lat, origenCliente.lng, d.lat, d.lng) }))
-                .sort((a, b) => a.dist - b.dist);
-            if (disponibles.length === 0) { box.style.display = 'none'; return; }
+            const conectados = Object.entries(window.flotaGlobal)
+                .filter(([, d]) => d.estado_operativo)
+                .map(([uid, d]) => {
+                    const conGps = !!(d.lat && d.lng);
+                    return {
+                        uid,
+                        nombre: d.nombre,
+                        dist: conGps ? calcularDistancia(origenCliente.lat, origenCliente.lng, d.lat, d.lng) : null
+                    };
+                })
+                .sort((a, b) => {
+                    if (a.dist === null && b.dist === null) return 0;
+                    if (a.dist === null) return 1;
+                    if (b.dist === null) return -1;
+                    return a.dist - b.dist;
+                });
+            if (conectados.length === 0) { box.style.display = 'none'; return; }
             box.style.display = 'block';
-            container.innerHTML = disponibles.map(c =>
+            container.innerHTML = conectados.map(c =>
                 `<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 12px;margin-bottom:8px;background:#f8f9fa;border-radius:12px;border:1px solid #ecf0f1;">
                     <span style="font-weight:bold;color:#2c3e50;">🚖 ${c.nombre}</span>
-                    <span style="color:#7f8c8d;font-size:12px;">${c.dist.toFixed(1)} km</span>
+                    <span style="color:#7f8c8d;font-size:12px;">${c.dist !== null ? c.dist.toFixed(1) + ' km' : '🟢 Conectado (sin señal GPS)'}</span>
                     <button class="btn-blue" style="width:auto;padding:8px 14px;margin-top:0;font-size:12px;" onclick="window.elegirConductor('${c.uid}')">Elegir</button>
                 </div>`).join('');
         }
@@ -458,12 +476,12 @@
             if(!window.destinoDefinido) return alert("Primero define tu destino: escribe la dirección y pulsa 'Buscar dirección', o usa 'Elegir en el mapa'.");
             if(window.viajeClienteActual) return alert("Ya tienes un viaje solicitado.");
 
-            const disponibles = Object.entries(window.flotaGlobal).filter(([, d]) => d.estado_operativo && d.lat && d.lng).length;
+            const disponibles = Object.entries(window.flotaGlobal).filter(([, d]) => d.estado_operativo).length;
             if (disponibles === 0) {
-                document.getElementById('clienteStatus').innerHTML = "⏳ Aún no hay choferes disponibles. Espera a que se conecten...";
+                document.getElementById('clienteStatus').innerHTML = "⏳ Aún no hay choferes conectados. Espera a que se conecten...";
                 return;
             }
-            document.getElementById('clienteStatus').innerHTML = `👆 Hay <b>${disponibles}</b> chofer(es) disponible(s). Elige uno en el mapa o en la lista de abajo.`;
+            document.getElementById('clienteStatus').innerHTML = `👆 Hay <b>${disponibles}</b> chofer(es) conectado(s). Elige uno en el mapa o en la lista de abajo.`;
             renderListaChoferes();
         };
 
@@ -744,12 +762,18 @@
                             delete window.distanciasAnteriores[uid];
                             window.conteoDesvios[uid] = 0;
                         }
+                    } else if (estado_operativo) {
+                        window.flotaGlobal[uid] = { nombre, lat: null, lng: null, estado_operativo: true, bloqueado: !!bloqueado };
                     } else {
                         delete window.flotaGlobal[uid];
                     }
                 });
                 renderListaChoferes();
                 actualizarPanelAdmin();
+            }, (error) => {
+                console.error("Error leyendo la flota:", error);
+                const st = document.getElementById('clienteStatus');
+                if (st) st.innerHTML = "⚠️ No se pudo leer la flota. Verifica que la Autenticación Anónima esté habilitada en Firebase y que las reglas de Firestore estén publicadas.";
             });
         }
 
@@ -802,7 +826,7 @@
             let html = "Monitoreando flota en tiempo real...<br>";
             Object.entries(window.flotaGlobal).forEach(([uid, d]) => {
                 const viaje = window.viajesPorConductor[uid];
-                html += `📡 <b>${d.nombre}</b> | Lat: ${d.lat.toFixed(4)}, Lng: ${d.lng.toFixed(4)}`;
+                html += `📡 <b>${d.nombre}</b> | Lat: ${d.lat ? d.lat.toFixed(4) : 'sin señal'}, Lng: ${d.lng ? d.lng.toFixed(4) : 'sin señal'}`;
                 if (viaje) {
                     html += ` | 💰 Deuda espera: <b>${viaje.deuda_espera} Bs.</b>`;
                     if (viaje.estado === "conductor_en_camino") html += ` | 🚦 En viaje (${viaje.cliente})`;

@@ -64,6 +64,11 @@ Aplicación Web de Página Única (SPA) de alta fidelidad para el despacho de ve
     *   **Cliente anónimo**: al abrir la app, Firebase Anonymous Auth autentica al Cliente sin registro (requisito de las reglas).
     *   `firestore.rules` endurecidas: lectura solo para autenticados; el conductor escribe únicamente su doc de `telemetria`; solo el conductor asignado o el Admin modifican un `viaje`; solo el Admin bloquea/desbloquea.
     *   **Política de bloqueo ajustada:** ya NO se bloquea con el primer desvío. Se requieren `UMBRAL_DESVIOS` (3) detecciones consecutivas de distancia creciente; antes de bloquear se muestra "Posible desvío (detección N/3)". Si la distancia vuelve a bajar, el contador se reinicia.
+*   **Fase 8 completada (Bug: "no hay conductores disponibles"):**
+    *   Un conductor **logueado pero sin GPS aún** (`lat/lng` en 0) ya no desaparece: queda visible en la lista del cliente como "🟢 Conectado (sin señal GPS)" y es **elegible** (Opción A). El marcador en el mapa y la verificación de desvíos siguen requiriendo coordenadas reales.
+    *   `renderListaChoferes` y `solicitarViaje` cuentan ahora a los conductores **conectados** (`estado_operativo`), no solo a los que emiten GPS.
+    *   `actualizarPanelAdmin` ya no rompe con conductores sin señal (muestra "sin señal").
+    *   El `onSnapshot` de la flota ahora tiene **handler de error**: si la lectura falla (p. ej. Autenticación Anónima deshabilitada o reglas no publicadas), el cliente ve un mensaje claro en lugar de "no hay choferes" sin explicación.
 *   **Nota de Scope para la IA:** Se están usando variables globales ancladas a `window` (ej. `window.uidConductorActual`, `window.flotaGlobal`, `window.viajeClienteActual`, `window.vehicleMarkers`, `window.esAdmin`) para permitir la comunicación entre las funciones que manejan el DOM y los listeners asíncronos de Firebase.
 
 ## 7. Directrices para futuras implementaciones
