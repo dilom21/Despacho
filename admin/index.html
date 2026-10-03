@@ -8,30 +8,87 @@
   <link rel="stylesheet" href="../css/estilos.css">
 </head>
 <body>
-  <header>
-    <h1>Administración de flota</h1>
-  </header>
+  <div id="appVista" class="admin-layout contenido-app">
+    <aside class="sidebar">
+      <div class="sidebar-marca">Despacho Vehicular</div>
+      <nav class="sidebar-menu">
+        <button class="menu-item activo" data-seccion="inicio">Inicio</button>
+        <button class="menu-item" data-seccion="usuarios">Usuarios</button>
+        <button class="menu-item" data-seccion="roles">Roles</button>
+        <button class="menu-item" data-seccion="flota">Conductores / Flota</button>
+        <button class="menu-item" data-seccion="viajes">Viajes</button>
+        <button class="menu-item" data-seccion="reportes">Reportes</button>
+        <button class="menu-item" data-seccion="auditorias">Auditorías</button>
+        <button id="btnCerrar" class="menu-item menu-salir">Cerrar sesión</button>
+      </nav>
+    </aside>
 
-  <main id="appVista" class="pagina contenido-app">
-    <div id="map"></div>
+    <main class="admin-contenido">
+      <header class="admin-header">
+        <h1 id="tituloSeccion">Inicio</h1>
+        <span id="adminSesion" class="texto-ayuda"></span>
+      </header>
 
-    <section class="panel">
-      <h2>Monitoreo</h2>
-      <p class="texto-ayuda">Los puntos del mapa provienen del GPS de los celulares usados por los conductores.</p>
+      <section id="seccion-inicio" class="seccion activa">
+        <div id="alertaDesvio" class="estado error oculto"></div>
+        <div class="contadores">
+          <div class="contador"><span id="cntConductores" class="contador-num">0</span><span class="contador-label">Conductores</span></div>
+          <div class="contador"><span id="cntConectados" class="contador-num">0</span><span class="contador-label">Conectados</span></div>
+          <div class="contador"><span id="cntViajesActivos" class="contador-num">0</span><span class="contador-label">Viajes activos</span></div>
+          <div class="contador"><span id="cntFinalizados" class="contador-num">0</span><span class="contador-label">Viajes finalizados</span></div>
+          <div class="contador"><span id="cntAlertas" class="contador-num">0</span><span class="contador-label">Alertas recientes</span></div>
+        </div>
+        <h2>Auditorías recientes</h2>
+        <div id="auditoriasRecientes" class="lista"></div>
+      </section>
 
-      <div id="resumen" class="estado">Cargando datos...</div>
-      <div id="alertaDesvio" class="estado error oculto"></div>
+      <section id="seccion-usuarios" class="seccion">
+        <table class="tabla-simple">
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Estado</th><th>Creado</th></tr></thead>
+          <tbody id="usuariosTabla"></tbody>
+        </table>
+      </section>
 
-      <h3>Conductores</h3>
-      <div id="conductoresLista"></div>
+      <section id="seccion-roles" class="seccion">
+        <p class="texto-ayuda">Solo un administrador puede cambiar el rol o activar/desactivar una cuenta.</p>
+        <table class="tabla-simple">
+          <thead><tr><th>Nombre</th><th>Correo</th><th>Rol</th><th>Activo</th><th>Acciones</th></tr></thead>
+          <tbody id="rolesTabla"></tbody>
+        </table>
+        <div id="rolesEstado" class="estado oculto"></div>
+      </section>
 
-      <h3>Auditorías recientes</h3>
-      <div id="auditoriasLista" class="lista"></div>
+      <section id="seccion-flota" class="seccion">
+        <div id="map"></div>
+        <div class="panel-flota">
+          <div id="resumen" class="estado">Cargando datos...</div>
+          <div id="conductoresLista"></div>
+        </div>
+      </section>
 
-      <div class="separador"></div>
-      <button id="btnCerrar" class="secundario">Cerrar sesión</button>
-    </section>
-  </main>
+      <section id="seccion-viajes" class="seccion">
+        <table class="tabla-simple">
+          <thead><tr><th>Estado</th><th>Cliente</th><th>Conductor</th><th>Destino</th><th>Espera</th><th>Creado</th></tr></thead>
+          <tbody id="viajesTabla"></tbody>
+        </table>
+      </section>
+
+      <section id="seccion-reportes" class="seccion">
+        <div id="reportesResumen" class="contadores"></div>
+        <h2>Viajes por conductor</h2>
+        <table class="tabla-simple">
+          <thead><tr><th>Conductor</th><th>Total</th><th>Finalizados</th><th>Rechazados</th><th>Deuda espera</th></tr></thead>
+          <tbody id="reportesPorConductor"></tbody>
+        </table>
+        <h2>Incidencias</h2>
+        <div id="reportesIncidencias" class="lista"></div>
+      </section>
+
+      <section id="seccion-auditorias" class="seccion">
+        <div id="auditoriasLista" class="lista"></div>
+      </section>
+    </main>
+  </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script type="module" src="../js/admin.js"></script>

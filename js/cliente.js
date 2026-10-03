@@ -4,6 +4,15 @@ import { ROL, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
 import { doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
+function escapar(valor) {
+  return String(valor == null ? "" : valor)
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
+}
+
 let usuarioCliente = null;
 let origenCliente = { lat: -17.7833, lng: -63.1821 };
 let destinoViaje = null;
@@ -147,7 +156,7 @@ function renderListaChoferes() {
   caja.classList.remove("oculto");
   lista.innerHTML = disponibles.map((conductor) => `
     <div class="item-lista">
-      <strong>${conductor.nombre || "Conductor"}</strong>
+      <strong>${escapar(conductor.nombre || "Conductor")}</strong>
       ${conductor.distancia !== null ? `${conductor.distancia.toFixed(1)} km de distancia` : "GPS todavía sin lectura"}
       <button data-uid="${conductor.uid}">Elegir</button>
     </div>
@@ -260,7 +269,7 @@ function renderMarcadores() {
     const etiqueta = conductorAsignadoUid === uid
       ? "Tu conductor"
       : c.estado_operativo ? "Disponible" : "No disponible";
-    marcadoresVehiculos[uid].bindPopup(`${c.nombre || "Conductor"}<br>${etiqueta}`);
+    marcadoresVehiculos[uid].bindPopup(`${escapar(c.nombre || "Conductor")}<br>${etiqueta}`);
   }
 }
 

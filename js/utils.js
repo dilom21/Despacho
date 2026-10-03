@@ -8,8 +8,9 @@ export function calcularDistancia(lat1, lon1, lat2, lon2) {
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 }
 
-export function horaLocal(fechaIso) {
-  if (!fechaIso) return "sin dato";
-  const fecha = new Date(fechaIso);
-  return Number.isNaN(fecha.getTime()) ? "sin dato" : fecha.toLocaleTimeString();
+export function horaLocal(fecha) {
+  if (!fecha) return "sin dato";
+  const valor = typeof fecha?.toDate === "function" ? fecha.toDate() : fecha;
+  const d = new Date(valor);
+  return Number.isNaN(d.getTime()) ? "sin dato" : d.toLocaleString();
 }
