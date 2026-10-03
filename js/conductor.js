@@ -9,8 +9,11 @@ import {
 
 let uidConductor = null;
 let nombreConductor = "Conductor";
+let emailConductor = "";
 let bloqueado = false;
 let watchId = null;
+const INTERVALO_ESCRITURA = 4000;
+let ultimaEscritura = 0;
 let viajePendienteId = null;
 let viajeActual = null;
 let timerAsignacion = null;
@@ -31,6 +34,10 @@ let lineaViaje = null;
 
 function mostrarApp() {
   document.getElementById("appVista").style.display = "grid";
+  const nombreEl = document.getElementById("conductorNombre");
+  const emailEl = document.getElementById("conductorEmail");
+  if (nombreEl) nombreEl.textContent = nombreConductor;
+  if (emailEl) emailEl.textContent = emailConductor;
   setTimeout(() => map.invalidateSize(), 100);
 }
 
@@ -100,46 +107,84 @@ async function activarGps() {
   if (watchId !== null) navigator.geolocation.clearWatch(watchId);
 
   await updateDoc(doc(db, "telemetria", uidConductor), {
+    conductor_uid: uidConductor,
     estado_operativo: true,
+    conectado: true,
     fuente_gps: "celular"
   });
+  await setDoc(doc(db, "flota_publica", uidConductor), {
+    conductor_uid: uidConductor,
+    nombre: nombreConductor,
+    estado_operativo: true,
+    bloqueado: bloqueado
+  }, { merge: true }).catch((error) => console.error(error));
 
   estadoGps("GPS activo. El celular está enviando la posición del taxi.", "ok");
   document.getElementById("btnStartGPS").classList.add("oculto");
   document.getElementById("btnStopGPS").classList.remove("oculto");
   document.getElementById("btnFalla").classList.remove("oculto");
 
+  ultimaEscritura = 0;
   watchId = navigator.geolocation.watchPosition(async (posicion) => {
     const lectura = {
+      conductor_uid: uidConductor,
       latitud: posicion.coords.latitude,
       longitud: posicion.coords.longitude,
       precision: Math.round(posicion.coords.accuracy || 0),
-      actualizado_en: new Date().toISOString(),
+      velocidad: posicion.coords.speed,
+      rumbo: posicion.coords.heading,
+      fuente_gps: "celular",
+      conectado: true,
       estado_operativo: true,
-      fuente_gps: "celular"
+      actualizado_en: new Date().toISOString()
     };
+
+    if (!marcadorPropio) {
+      marcadorPropio = L.marker([lectura.latitud, lectura.longitud]).addTo(map).bindPopup("Este taxi");
+    } else {
+      marcadorPropio.setLatLng([lectura.latitud, lectura.longitud]);
+    }
+
+    const caja = document.getElementById("gpsDatos");
+    caja.classList.remove("oculto");
+    caja.textContent =
+      `Lat: ${lectura.latitud.toFixed(6)}\nLng: ${lectura.longitud.toFixed(6)}\nPrecisión: ±${lectura.precision} m\nÚltima lectura: ${new Date().toLocaleTimeString()}`;
+
+    const ahora = Date.now();
+    if (ahora - ultimaEscritura < INTERVALO_ESCRITURA) return;
+    ultimaEscritura = ahora;
 
     try {
       await updateDoc(doc(db, "telemetria", uidConductor), lectura);
-      document.getElementById("gpsDatos").classList.remove("oculto");
-      document.getElementById("gpsDatos").textContent =
-        `Lat: ${lectura.latitud.toFixed(6)}\nLng: ${lectura.longitud.toFixed(6)}\nPrecisión: ±${lectura.precision} m\nÚltima lectura: ${new Date(lectura.actualizado_en).toLocaleTimeString()}`;
-
-      if (!marcadorPropio) {
-        marcadorPropio = L.marker([lectura.latitud, lectura.longitud]).addTo(map).bindPopup("Este taxi");
-      } else {
-        marcadorPropio.setLatLng([lectura.latitud, lectura.longitud]);
-      }
+      await setDoc(doc(db, "flota_publica", uidConductor), {
+        conductor_uid: uidConductor,
+        nombre: nombreConductor,
+        latitud: lectura.latitud,
+        longitud: lectura.longitud,
+        precision: lectura.precision,
+        estado_operativo: true,
+        bloqueado: bloqueado,
+        actualizado_en: lectura.actualizado_en
+      }, { merge: true });
+      caja.textContent += `\nEnviado: ${new Date().toLocaleTimeString()}`;
     } catch (error) {
       console.error(error);
       estadoGps("No se pudo enviar la ubicación a Firebase.", "error");
     }
   }, (error) => {
     console.error(error);
-    estadoGps("No se pudo obtener la ubicación. Revisa permisos del celular.", "error");
+    if (error.code === error.PERMISSION_DENIED) {
+      estadoGps("Permiso de ubicación denegado. Actívalo en el navegador del celular.", "error");
+    } else if (error.code === error.POSITION_UNAVAILABLE) {
+      estadoGps("Ubicación no disponible. Revisa el GPS del celular.", "error");
+    } else if (error.code === error.TIMEOUT) {
+      estadoGps("Tiempo de espera agotado al obtener la ubicación. Intenta de nuevo.", "error");
+    } else {
+      estadoGps("No se pudo obtener la ubicación. Revisa permisos del celular.", "error");
+    }
   }, {
     enableHighAccuracy: true,
-    maximumAge: 2000,
+    maximumAge: 0,
     timeout: 10000
   });
 }
@@ -154,10 +199,20 @@ async function detenerGps() {
   document.getElementById("gpsDatos").classList.add("oculto");
   estadoGps("GPS apagado.");
   if (uidConductor) {
+    const ahora = new Date().toISOString();
     await updateDoc(doc(db, "telemetria", uidConductor), {
+      conductor_uid: uidConductor,
+      conectado: false,
       estado_operativo: false,
-      actualizado_en: new Date().toISOString()
+      actualizado_en: ahora
     }).catch(() => {});
+    await setDoc(doc(db, "flota_publica", uidConductor), {
+      conductor_uid: uidConductor,
+      nombre: nombreConductor,
+      bloqueado: bloqueado,
+      estado_operativo: false,
+      actualizado_en: ahora
+    }, { merge: true }).catch(() => {});
   }
 }
 
@@ -172,6 +227,12 @@ async function reportarFalla() {
     bloqueado: true,
     estado_operativo: false
   });
+  await setDoc(doc(db, "flota_publica", uidConductor), {
+    conductor_uid: uidConductor,
+    nombre: nombreConductor,
+    bloqueado: true,
+    estado_operativo: false
+  }, { merge: true }).catch((error) => console.error(error));
 
   if (viajePendienteId) {
     await updateDoc(doc(db, "viajes", viajePendienteId), { estado: "rechazado_por_bloqueo" });
@@ -405,6 +466,7 @@ onAuthStateChanged(auth, async (user) => {
     }
     uidConductor = uidParam;
     nombreConductor = snap.data().nombre || nombreConductor;
+    emailConductor = "Vista de solo lectura";
     mostrarApp();
     configurarVistaAdmin();
     escucharEstadoConductor();
@@ -420,6 +482,7 @@ onAuthStateChanged(auth, async (user) => {
 
   uidConductor = user.uid;
   nombreConductor = perfil.nombre || "Conductor";
+  emailConductor = perfil.email || "";
   modoAdminVista = false;
   mostrarApp();
   escucharEstadoConductor();

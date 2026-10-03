@@ -273,3 +273,19 @@ button:disabled {
   color: #fff;
   border-color: #333;
 }
+
+.barra-sesion {
+  border: 1px solid #d7d7d7;
+  background: #fafafa;
+  padding: 10px;
+  margin-bottom: 14px;
+  font-size: 13px;
+}
+
+.barra-sesion strong {
+  display: block;
+}
+
+.barra-sesion .texto-ayuda {
+  margin: 2px 0 0;
+}

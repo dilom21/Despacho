@@ -22,10 +22,48 @@ export async function obtenerPerfil(uid) {
   }
 }
 
+// Garantiza que un conductor tenga su documento telemetria (recupera registros incompletos).
+async function asegurarTelemetria(uid, nombre) {
+  const telemetria = await getDoc(doc(db, "telemetria", uid));
+  if (telemetria.exists()) {
+    if (telemetria.data().conductor_uid !== uid) {
+      try {
+        await updateDoc(doc(db, "telemetria", uid), { conductor_uid: uid });
+      } catch (error) {
+        console.warn("No se pudo normalizar telemetria:", error);
+      }
+    }
+    return;
+  }
+  await setDoc(doc(db, "telemetria", uid), {
+    conductor_uid: uid,
+    nombre: nombre || "Conductor",
+    latitud: null,
+    longitud: null,
+    precision: null,
+    velocidad: null,
+    rumbo: null,
+    fuente_gps: "celular",
+    conectado: false,
+    estado_operativo: false,
+    bloqueado: false,
+    actualizado_en: null
+  });
+}
+
 // Garantiza que exista usuarios/{uid}. Bootstrap del admin existente y migracion de conductores previos.
 export async function asegurarPerfil(user) {
   const perfil = await obtenerPerfil(user.uid);
-  if (perfil) return perfil;
+  if (perfil) {
+    if (perfil.rol === ROL.CONDUCTOR) {
+      try {
+        await asegurarTelemetria(user.uid, perfil.nombre);
+      } catch (error) {
+        console.warn("No se pudo asegurar telemetria:", error);
+      }
+    }
+    return perfil;
+  }
 
   const email = (user.email || "").toLowerCase();
 

@@ -69,13 +69,22 @@ async function registrarConductor() {
   boton.disabled = true;
 
   let cred = null;
-  let telemetriaCreada = false;
+  let perfilCreado = false;
 
   try {
     cred = await createUserWithEmailAndPassword(auth, email, pass);
     const uid = cred.user.uid;
 
-    // Primero telemetria: si falla el perfil despues, asegurarPerfil puede recuperarlo.
+    // Primero el perfil: las reglas exigen rol conductor para poder crear telemetria.
+    await setDoc(doc(db, "usuarios", uid), {
+      nombre,
+      email,
+      rol: ROL.CONDUCTOR,
+      activo: true,
+      creado_en: serverTimestamp()
+    });
+    perfilCreado = true;
+
     await setDoc(doc(db, "telemetria", uid), {
       conductor_uid: uid,
       nombre,
@@ -90,22 +99,19 @@ async function registrarConductor() {
       bloqueado: false,
       actualizado_en: null
     });
-    telemetriaCreada = true;
-
-    await setDoc(doc(db, "usuarios", uid), {
-      nombre,
-      email,
-      rol: ROL.CONDUCTOR,
-      activo: true,
-      creado_en: serverTimestamp()
-    });
 
     location.replace(urlModulo("conductor"));
   } catch (error) {
     console.error(error);
 
-    // Si la cuenta Auth quedo sin telemetria, se revierte para no dejar cuentas huerfanas.
-    if (!telemetriaCreada && cred && cred.user) {
+    // El perfil ya quedo creado: el guard del conductor completara la telemetria.
+    if (perfilCreado) {
+      location.replace(urlModulo("conductor"));
+      return;
+    }
+
+    // Si la cuenta Auth quedo sin perfil, se revierte para no dejar cuentas huerfanas.
+    if (cred && cred.user) {
       try {
         await cred.user.delete();
       } catch (errorBorrado) {

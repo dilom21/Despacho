@@ -3,60 +3,151 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
+    // ----- Helpers de autorizacion -----
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function userDocExists(uid) {
+      return exists(/databases/$(database)/documents/usuarios/$(uid));
+    }
+
+    function userData(uid) {
+      return get(/databases/$(database)/documents/usuarios/$(uid)).data;
+    }
+
     function isAdmin() {
-      return request.auth != null &&
-             request.auth.token.email != null &&
+      return signedIn() &&
+             userDocExists(request.auth.uid) &&
+             userData(request.auth.uid).get('rol', null) == 'admin' &&
+             userData(request.auth.uid).get('activo', false) == true;
+    }
+
+    function isConductor() {
+      return signedIn() &&
+             userDocExists(request.auth.uid) &&
+             userData(request.auth.uid).get('rol', null) == 'conductor' &&
+             userData(request.auth.uid).get('activo', false) == true;
+    }
+
+    function isOwner(uid) {
+      return signedIn() && request.auth.uid == uid;
+    }
+
+    // Solo para el bootstrap de una sola vez de la cuenta administrativa existente.
+    function esAdminEmail() {
+      return request.auth.token.email != null &&
              request.auth.token.email.lower() == 'admin@despacho.com';
     }
 
+    // ----- Usuarios y roles -----
+    match /usuarios/{uid} {
+      allow read: if isAdmin() || isOwner(uid);
+
+      // El registro publico solo puede crear conductores. El unico admin permitido
+      // es la cuenta administrativa existente (bootstrap de una sola vez).
+      allow create: if isOwner(uid) && (
+        (request.resource.data.get('rol', null) == 'conductor' &&
+         request.resource.data.get('activo', false) == true &&
+         request.auth.token.firebase.sign_in_provider != 'anonymous') ||
+        (request.resource.data.get('rol', null) == 'admin' && esAdminEmail() &&
+         request.resource.data.get('activo', false) == true)
+      );
+
+      // El admin gestiona roles/estado. El dueno puede editar datos personales pero
+      // NO puede cambiar su propio rol ni su estado activo.
+      allow update: if isAdmin() || (
+        isOwner(uid) &&
+        request.resource.data.get('rol', null) == resource.data.get('rol', null) &&
+        request.resource.data.get('activo', false) == resource.data.get('activo', false)
+      );
+
+      allow delete: if isAdmin();
+    }
+
+    // ----- Telemetria (GPS del taxi, datos completos) -----
     match /telemetria/{uid} {
-      // Cliente, conductor y administrador necesitan ver la flota en el mapa.
-      allow read: if request.auth != null;
+      allow read: if isAdmin() || isOwner(uid);
 
-      // Los perfiles de conductor no se crean desde una ruta pública.
-      // Se aprovisionan previamente y solo el administrador puede crear el registro.
-      allow create: if isAdmin();
+      allow create: if isAdmin() || (
+        isConductor() &&
+        isOwner(uid) &&
+        request.resource.data.get('conductor_uid', null) == uid
+      );
 
-      // El conductor actualiza su GPS, pero no puede quitarse un bloqueo.
+      // El conductor actualiza su GPS. No puede cambiar dueno.
+      // Puede autobloquearse al reportar una falla (false -> true),
+      // pero nunca puede quitarse un bloqueo (true -> false); eso es solo del admin.
       allow update: if isAdmin() || (
-        request.auth != null &&
-        request.auth.uid == uid &&
-        request.resource.data.bloqueado == resource.data.bloqueado
+        isConductor() &&
+        isOwner(uid) &&
+        request.resource.data.get('conductor_uid', null) == uid &&
+        (
+          request.resource.data.get('bloqueado', false) == resource.data.get('bloqueado', false) ||
+          (resource.data.get('bloqueado', false) == false &&
+           request.resource.data.get('bloqueado', false) == true)
+        )
       );
 
       allow delete: if isAdmin();
     }
 
+    // ----- Flota publica (espejo minimo para el cliente) -----
+    match /flota_publica/{uid} {
+      allow read: if signedIn();
+
+      allow create: if isAdmin() || (
+        isConductor() &&
+        isOwner(uid) &&
+        request.resource.data.get('conductor_uid', null) == uid
+      );
+
+      // Solo un conductor autenticado escribe su espejo. No puede limpiar un
+      // bloqueo (true -> false); el admin lo refleja al bloquear/desbloquear.
+      allow update: if isAdmin() || (
+        isConductor() &&
+        isOwner(uid) &&
+        request.resource.data.get('conductor_uid', null) == uid &&
+        (
+          request.resource.data.get('bloqueado', false) == resource.data.get('bloqueado', false) ||
+          (resource.data.get('bloqueado', false) == false &&
+           request.resource.data.get('bloqueado', false) == true)
+        )
+      );
+
+      // El dueno no puede borrar el espejo (evita recrearlo sin bloqueo).
+      allow delete: if isAdmin();
+    }
+
+    // ----- Viajes -----
     match /viajes/{viajeId} {
-      // El cliente anónimo crea un viaje identificado con su UID.
-      allow create: if request.auth != null &&
-                    request.resource.data.cliente_uid == request.auth.uid;
+      allow create: if signedIn() &&
+                    request.resource.data.get('cliente_uid', null) == request.auth.uid;
 
-      // Solo cliente dueño, conductor asignado y admin pueden leer el viaje.
-      allow read: if request.auth != null && (
+      allow read: if signedIn() && (
         isAdmin() ||
-        resource.data.cliente_uid == request.auth.uid ||
-        resource.data.conductor_asignado == request.auth.uid
+        resource.data.get('cliente_uid', null) == request.auth.uid ||
+        resource.data.get('conductor_asignado', null) == request.auth.uid
       );
 
-      // El conductor asignado puede cambiar el estado del viaje.
+      // El conductor asignado actualiza el estado, sin apropiarse del viaje.
       allow update: if isAdmin() || (
-        request.auth != null &&
-        resource.data.conductor_asignado == request.auth.uid &&
-        request.resource.data.conductor_asignado == request.auth.uid &&
-        request.resource.data.cliente_uid == resource.data.cliente_uid
+        isConductor() &&
+        resource.data.get('conductor_asignado', null) == request.auth.uid &&
+        request.resource.data.get('conductor_asignado', null) == request.auth.uid &&
+        request.resource.data.get('cliente_uid', null) == resource.data.get('cliente_uid', null)
       );
 
       allow delete: if isAdmin();
     }
 
+    // ----- Auditorias (privadas) -----
     match /auditorias_desvios/{auditoriaId} {
       allow read: if isAdmin();
 
-      // El conductor puede registrar su propia falla; el admin registra desvíos.
       allow create: if isAdmin() || (
-        request.auth != null &&
-        request.resource.data.conductor_id == request.auth.uid
+        isConductor() &&
+        request.resource.data.get('conductor_id', null) == request.auth.uid
       );
 
       allow update, delete: if isAdmin();

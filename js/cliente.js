@@ -10,6 +10,7 @@ let destinoViaje = null;
 let destinoNombre = "";
 let modoElegirDestino = false;
 let viajeClienteActual = null;
+let conductorAsignadoUid = null;
 let unsubViajeCliente = null;
 const flota = {};
 const marcadoresVehiculos = {};
@@ -116,6 +117,12 @@ function renderListaChoferes() {
   const caja = document.getElementById("listaChoferes");
   const lista = document.getElementById("choferesList");
 
+  if (conductorAsignadoUid) {
+    caja.classList.add("oculto");
+    lista.innerHTML = "";
+    return;
+  }
+
   const disponibles = Object.entries(flota)
     .filter(([, conductor]) => conductor.estado_operativo && !conductor.bloqueado)
     .map(([uid, conductor]) => ({
@@ -181,6 +188,7 @@ async function elegirConductor(uid) {
 
   const viajeId = `viaje_${Date.now()}_${uid}`;
   viajeClienteActual = viajeId;
+  conductorAsignadoUid = uid; renderMarcadores();
   document.getElementById("listaChoferes").classList.add("oculto");
   mostrarEstado(`Solicitud enviada a ${conductor.nombre}. Esperando respuesta...`);
 
@@ -211,30 +219,59 @@ async function elegirConductor(uid) {
     } else if (data.estado === "finalizado") {
       mostrarEstado(`Viaje finalizado. Deuda de espera: ${data.deuda_espera || 0} Bs.`, "ok");
       viajeClienteActual = null;
+      conductorAsignadoUid = null; renderMarcadores();
     } else if (data.estado === "rechazado_por_tiempo") {
       mostrarEstado("El conductor no respondió a tiempo. Puedes elegir otro.", "error");
       viajeClienteActual = null;
+      conductorAsignadoUid = null; renderMarcadores();
       renderListaChoferes();
     } else if (data.estado === "rechazado_por_bloqueo") {
       mostrarEstado("El conductor fue bloqueado. Puedes elegir otro.", "error");
       viajeClienteActual = null;
+      conductorAsignadoUid = null; renderMarcadores();
       renderListaChoferes();
     }
   });
 }
 
+function renderMarcadores() {
+  const visibles = {};
+  if (conductorAsignadoUid && flota[conductorAsignadoUid]) {
+    visibles[conductorAsignadoUid] = flota[conductorAsignadoUid];
+  } else if (!conductorAsignadoUid) {
+    for (const [uid, c] of Object.entries(flota)) visibles[uid] = c;
+  }
+
+  for (const uid of Object.keys(marcadoresVehiculos)) {
+    const c = visibles[uid];
+    if (!c || !c.lat || !c.lng) {
+      map.removeLayer(marcadoresVehiculos[uid]);
+      delete marcadoresVehiculos[uid];
+    }
+  }
+
+  for (const [uid, c] of Object.entries(visibles)) {
+    if (!c.lat || !c.lng) continue;
+    if (!marcadoresVehiculos[uid]) {
+      marcadoresVehiculos[uid] = L.marker([c.lat, c.lng]).addTo(map);
+    } else {
+      marcadoresVehiculos[uid].setLatLng([c.lat, c.lng]);
+    }
+    const etiqueta = conductorAsignadoUid === uid
+      ? "Tu conductor"
+      : c.estado_operativo ? "Disponible" : "No disponible";
+    marcadoresVehiculos[uid].bindPopup(`${c.nombre || "Conductor"}<br>${etiqueta}`);
+  }
+}
+
 function escucharFlota() {
-  onSnapshot(collection(db, "telemetria"), (snapshot) => {
+  onSnapshot(collection(db, "flota_publica"), (snapshot) => {
     snapshot.docChanges().forEach((cambio) => {
       const uid = cambio.doc.id;
       const data = cambio.doc.data();
 
       if (cambio.type === "removed") {
         delete flota[uid];
-        if (marcadoresVehiculos[uid]) {
-          map.removeLayer(marcadoresVehiculos[uid]);
-          delete marcadoresVehiculos[uid];
-        }
         return;
       }
 
@@ -245,16 +282,8 @@ function escucharFlota() {
         estado_operativo: Boolean(data.estado_operativo),
         bloqueado: Boolean(data.bloqueado)
       };
-
-      if (data.latitud && data.longitud) {
-        if (!marcadoresVehiculos[uid]) {
-          marcadoresVehiculos[uid] = L.marker([data.latitud, data.longitud]).addTo(map);
-        } else {
-          marcadoresVehiculos[uid].setLatLng([data.latitud, data.longitud]);
-        }
-        marcadoresVehiculos[uid].bindPopup(`${data.nombre || "Conductor"}<br>${data.estado_operativo ? "Disponible" : "No disponible"}`);
-      }
     });
+    renderMarcadores();
     renderListaChoferes();
   }, (error) => {
     console.error(error);

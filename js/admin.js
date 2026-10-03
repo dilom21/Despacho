@@ -112,6 +112,14 @@ async function revisarDesvio(uid, conductor) {
         estado_operativo: false
       });
 
+      // Refleja el bloqueo en el espejo publico aunque el conductor este offline.
+      await setDoc(doc(db, "flota_publica", uid), {
+        conductor_uid: uid,
+        nombre: conductor.nombre,
+        bloqueado: true,
+        estado_operativo: false
+      }, { merge: true }).catch((error) => console.error(error));
+
       if (viaje.viajeId) {
         await updateDoc(doc(db, "viajes", viaje.viajeId), { estado: "rechazado_por_bloqueo" });
       }
@@ -216,6 +224,14 @@ async function desbloquearConductor(uid) {
     bloqueado: false,
     estado_operativo: false
   });
+
+  // Refleja el desbloqueo en el espejo publico.
+  await setDoc(doc(db, "flota_publica", uid), {
+    conductor_uid: uid,
+    bloqueado: false,
+    estado_operativo: false
+  }, { merge: true }).catch((error) => console.error(error));
+
   const alerta = document.getElementById("alertaDesvio");
   alerta.classList.remove("oculto");
   alerta.textContent = "Conductor desbloqueado. Debe volver a activar el GPS desde su celular.";
