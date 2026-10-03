@@ -1,4 +1,4 @@
-import { db, auth } from "./firebase-config.js";
+import { db, auth, ADMIN_EMAIL } from "./firebase-config.js";
 import { ROL, urlModulo, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
 import {
   doc, setDoc, serverTimestamp
@@ -40,6 +40,8 @@ async function iniciarSesion() {
 }
 
 async function registrarConductor() {
+  if (registrando) return;
+
   const nombre = document.getElementById("regNombre").value.trim();
   const email = document.getElementById("regEmail").value.trim();
   const pass = document.getElementById("regPass").value;
@@ -47,6 +49,10 @@ async function registrarConductor() {
 
   if (!nombre || !email || !pass || !confirm) {
     mostrarEstado("registroEstado", "Completa todos los campos.", "error");
+    return;
+  }
+  if (email.toLowerCase() === ADMIN_EMAIL.toLowerCase()) {
+    mostrarEstado("registroEstado", "Ese correo no puede registrarse desde aquí.", "error");
     return;
   }
   if (pass !== confirm) {
@@ -58,20 +64,20 @@ async function registrarConductor() {
     return;
   }
 
+  const boton = document.getElementById("btnRegistrar");
   registrando = true;
+  boton.disabled = true;
+
+  let cred = null;
+  let telemetriaCreada = false;
+
   try {
-    const cred = await createUserWithEmailAndPassword(auth, email, pass);
+    cred = await createUserWithEmailAndPassword(auth, email, pass);
+    const uid = cred.user.uid;
 
-    await setDoc(doc(db, "usuarios", cred.user.uid), {
-      nombre,
-      email,
-      rol: ROL.CONDUCTOR,
-      activo: true,
-      creado_en: serverTimestamp()
-    });
-
-    await setDoc(doc(db, "telemetria", cred.user.uid), {
-      conductor_uid: cred.user.uid,
+    // Primero telemetria: si falla el perfil despues, asegurarPerfil puede recuperarlo.
+    await setDoc(doc(db, "telemetria", uid), {
+      conductor_uid: uid,
       nombre,
       latitud: null,
       longitud: null,
@@ -84,10 +90,30 @@ async function registrarConductor() {
       bloqueado: false,
       actualizado_en: null
     });
+    telemetriaCreada = true;
+
+    await setDoc(doc(db, "usuarios", uid), {
+      nombre,
+      email,
+      rol: ROL.CONDUCTOR,
+      activo: true,
+      creado_en: serverTimestamp()
+    });
 
     location.replace(urlModulo("conductor"));
   } catch (error) {
     console.error(error);
+
+    // Si la cuenta Auth quedo sin telemetria, se revierte para no dejar cuentas huerfanas.
+    if (!telemetriaCreada && cred && cred.user) {
+      try {
+        await cred.user.delete();
+      } catch (errorBorrado) {
+        console.warn("No se pudo revertir la cuenta:", errorBorrado);
+        try { await signOut(auth); } catch (errorSalida) { console.error(errorSalida); }
+      }
+    }
+
     if (error && error.code === "permission-denied") {
       mostrarEstado("registroEstado", "No se pudo guardar el perfil de conductor. Verifica que firestore.rules esté desplegado.", "error");
     } else {
@@ -95,6 +121,7 @@ async function registrarConductor() {
     }
   } finally {
     registrando = false;
+    boton.disabled = false;
   }
 }
 
@@ -117,6 +144,13 @@ onAuthStateChanged(auth, async (user) => {
   const perfil = await asegurarPerfil(user);
   if (!perfil || perfil.activo === false) {
     try { await signOut(auth); } catch (error) { console.error(error); }
+    mostrarEstado("loginEstado", "Esta cuenta no tiene un perfil válido. Contacta al administrador.", "error");
+    return;
+  }
+
+  if (perfil.rol !== ROL.ADMIN && perfil.rol !== ROL.CONDUCTOR) {
+    try { await signOut(auth); } catch (error) { console.error(error); }
+    mostrarEstado("loginEstado", "Rol no reconocido. La sesión fue cerrada.", "error");
     return;
   }
 

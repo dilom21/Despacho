@@ -78,16 +78,20 @@ export function requireRole(rolEsperado) {
   return new Promise((resolve) => {
     const unsub = onAuthStateChanged(auth, async (user) => {
       if (!user || user.isAnonymous) {
+        unsub();
         location.replace(urlModulo("personal"));
         return;
       }
       const perfil = await asegurarPerfil(user);
-      if (!perfil || perfil.activo === false) {
+      const rolValido = perfil && (perfil.rol === ROL.ADMIN || perfil.rol === ROL.CONDUCTOR);
+      if (!perfil || perfil.activo === false || !rolValido) {
+        unsub();
         try { await signOut(auth); } catch (error) { console.error(error); }
         location.replace(urlModulo("personal"));
         return;
       }
       if (perfil.rol !== rolEsperado) {
+        unsub();
         redirigirPorRol(perfil.rol);
         return;
       }
