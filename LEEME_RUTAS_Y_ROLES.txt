@@ -1,28 +1,42 @@
 DESPACHO VEHICULAR - PRUEBAS DE RUTAS Y ROLES
 
 Rutas:
-  /             -> Cliente
-  /conductor/   -> Conductor
-  /admin/        -> Administrador
+  /             -> Cliente (público)
+  /personal/    -> Único acceso del personal (login + crear cuenta de conductor)
+  /conductor/   -> Panel del Conductor (protegido)
+  /admin/       -> Panel del Administrador (protegido, con sidebar)
 
 Prueba local:
   1. Abre una terminal dentro de esta carpeta.
   2. Ejecuta: python -m http.server 5500
   3. Cliente:       http://localhost:5500/
-  4. Conductor:     http://localhost:5500/conductor/
-  5. Administrador: http://localhost:5500/admin/
+  4. Personal:      http://localhost:5500/personal/
+  5. Conductor:     http://localhost:5500/conductor/
+  6. Administrador: http://localhost:5500/admin/
 
 Acceso esperado:
   - Cliente: no muestra enlaces a conductor ni administrador.
-  - Conductor: debe iniciar sesión con una cuenta que ya tenga un documento
-    telemetria/{uid}. Ya no existe registro público de conductores.
-  - Administrador: entra únicamente con admin@despacho.com.
-  - Un conductor autenticado que intente abrir /admin/ vuelve a /conductor/.
-  - Un administrador puede abrir la vista de un conductor desde el botón
-    "Ver vista conductor". Esa vista es de solo lectura.
-  - Una sesión de conductor o administrador que intente abrir / es redirigida
-    automáticamente a su panel correspondiente.
+  - Personal: es el único login. Permite iniciar sesión y crear cuenta de conductor.
+  - Registro: crea usuarios/{uid} con rol "conductor" e inicializa telemetria/{uid};
+    redirige a /conductor/. Nunca crea administradores.
+  - Tras el login: conductor -> /conductor/, admin -> /admin/.
+  - Conductor: solo su panel; si intenta /admin/ vuelve a /conductor/.
+  - Administrador: sidebar con Inicio, Usuarios, Roles, Conductores/Flota, Viajes,
+    Reportes, Auditorías y Cerrar sesión.
+  - Sin sesión en /conductor/ o /admin/ -> vuelve a /personal/.
+  - El administrador puede abrir la vista de un conductor desde "Ver vista conductor"
+    (/conductor/?uid=...). Esa vista es de solo lectura.
+
+Cuentas existentes:
+  - El administrador admin@despacho.com genera su perfil la primera vez que entra a /personal/.
+  - Los conductores que ya existían (con telemetria/{uid}) generan su perfil usuarios/{uid}
+    la primera vez que entran a /personal/. Basta con que entren una vez.
+
+GPS (celular como chip del taxi):
+  - Abrir /conductor/ desde el celular con HTTPS (o localhost) y pulsar "Activar GPS".
+  - El celular envía la posición a telemetria/{uid} y al espejo flota_publica/{uid}.
+  - El administrador ve la flota; el cliente solo rastrea a su conductor asignado.
 
 IMPORTANTE:
-  Para que el aislamiento también se aplique en Firestore, publica el archivo
-  firestore.rules actualizado en Firebase.
+  Para que la seguridad y el registro funcionen, publica el archivo firestore.rules
+  actualizado en Firebase (Consola -> Firestore -> Reglas, o `firebase deploy --only firestore:rules`).
