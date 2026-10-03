@@ -6,6 +6,9 @@ import {
 import {
   onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
+import { obtenerRutaCalles, crearRutaThrottled } from "./rutas.js";
+import { iconoCarro, iconoPersona, iconoDestino } from "./map-icons.js";
+import { mostrarNotificacion } from "./notificaciones.js";
 
 let uidConductor = null;
 let nombreConductor = "Conductor";
@@ -24,6 +27,8 @@ let montoEspera = 0;
 let unsubViajes = null;
 let unsubEstado = null;
 let modoAdminVista = false;
+let bloqueadoAnterior = null;
+let avisoErrorFirebase = false;
 
 const map = L.map("map").setView([-17.7833, -63.1821], 14);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
@@ -31,6 +36,15 @@ let marcadorPropio = null;
 let marcadorOrigen = null;
 let marcadorDestino = null;
 let lineaViaje = null;
+let viajeActualData = null;
+const rutaViajeThrottled = crearRutaThrottled(12000);
+
+// Acepta 0 como coordenada valida. Solo null/undefined/vacio o no numerico es invalido.
+function numeroCoordenada(valor) {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
 
 function mostrarApp() {
   document.getElementById("appVista").style.display = "grid";
@@ -67,18 +81,80 @@ function limpiarMapaViaje() {
   marcadorOrigen = null;
   marcadorDestino = null;
   lineaViaje = null;
+  viajeActualData = null;
 }
 
-function dibujarViaje(data) {
-  limpiarMapaViaje();
-  if (data.origen) marcadorOrigen = L.marker([data.origen.lat, data.origen.lng]).addTo(map).bindPopup("Origen del cliente");
-  if (data.destino) marcadorDestino = L.marker([data.destino.lat, data.destino.lng]).addTo(map).bindPopup("Destino");
+// Devuelve los dos puntos [inicio, fin] de la ruta segun la etapa del viaje.
+// conductor_en_camino -> conductor actual hasta el origen; en_viaje -> conductor actual
+// hasta el destino; cualquier otra etapa -> origen hasta destino (comportamiento previo).
+function puntosRutaViaje(data) {
+  const propio = marcadorPropio && marcadorPropio.getLatLng();
+  const posConductor = propio
+    ? { lat: propio.lat, lng: propio.lng }
+    : (data.origen ? { lat: data.origen.lat, lng: data.origen.lng } : null);
+
+  if (data.estado === "conductor_en_camino" && posConductor && data.origen) {
+    return [posConductor, { lat: data.origen.lat, lng: data.origen.lng }];
+  }
+  if (data.estado === "en_viaje" && posConductor && data.destino) {
+    return [posConductor, { lat: data.destino.lat, lng: data.destino.lng }];
+  }
   if (data.origen && data.destino) {
-    lineaViaje = L.polyline([
-      [data.origen.lat, data.origen.lng],
-      [data.destino.lat, data.destino.lng]
-    ], { weight: 3 }).addTo(map);
-    map.fitBounds(lineaViaje.getBounds(), { padding: [30, 30] });
+    return [
+      { lat: data.origen.lat, lng: data.origen.lng },
+      { lat: data.destino.lat, lng: data.destino.lng }
+    ];
+  }
+  return null;
+}
+
+// Traza la linea del viaje: ruta real por calles (OSRM) con fallback a recta.
+async function actualizarLineaViaje(forzar = false) {
+  const data = viajeActualData;
+  if (!data) return;
+  const puntos = puntosRutaViaje(data);
+  if (!puntos) return;
+
+  const puntosLeaflet = puntos.map((p) => [p.lat, p.lng]);
+  const geometria = await rutaViajeThrottled(puntos, forzar);
+
+  if (geometria === undefined) {
+    // Throttled: conservar la linea actual; si aun no existe, trazar la recta.
+    if (!lineaViaje) lineaViaje = L.polyline(puntosLeaflet, { weight: 3 }).addTo(map);
+    return;
+  }
+
+  const coordenadas = (geometria && geometria.length >= 2) ? geometria : puntosLeaflet;
+  if (lineaViaje) map.removeLayer(lineaViaje);
+  lineaViaje = L.polyline(coordenadas, { weight: 3 }).addTo(map);
+}
+
+// Refresco suave desde el callback GPS (respeta el throttle de 12 s de OSRM).
+function refrescarRutaViaje() {
+  if (!viajeActualData) return;
+  const estado = viajeActualData.estado;
+  if (estado !== "conductor_en_camino" && estado !== "en_viaje") return;
+  actualizarLineaViaje(false);
+}
+
+function dibujarViaje(data, forzar = true) {
+  limpiarMapaViaje();
+  viajeActualData = data;
+  // En en_viaje el pasajero ya va a bordo: se oculta la persona (origen) y el
+  // mapa queda con carro + destino, igual que en Uber/Yango.
+  if (data.origen && data.estado !== "en_viaje") {
+    marcadorOrigen = L.marker([data.origen.lat, data.origen.lng], { icon: iconoPersona }).addTo(map).bindPopup("Origen del cliente");
+  }
+  if (data.destino) {
+    marcadorDestino = L.marker([data.destino.lat, data.destino.lng], { icon: iconoDestino }).addTo(map).bindPopup("Destino");
+  }
+
+  const puntos = puntosRutaViaje(data);
+  if (!puntos) return;
+
+  actualizarLineaViaje(forzar);
+  if (forzar) {
+    map.fitBounds(L.latLngBounds(puntos.map((p) => [p.lat, p.lng])), { padding: [30, 30] });
   }
 }
 
@@ -108,21 +184,27 @@ async function activarGps() {
 
   await updateDoc(doc(db, "telemetria", uidConductor), {
     conductor_uid: uidConductor,
-    estado_operativo: true,
-    conectado: true,
+    nombre: nombreConductor,
+    estado_operativo: false,
+    conectado: false,
+    bloqueado: bloqueado,
     fuente_gps: "celular"
   });
   await setDoc(doc(db, "flota_publica", uidConductor), {
     conductor_uid: uidConductor,
     nombre: nombreConductor,
-    estado_operativo: true,
+    estado_operativo: false,
+    conectado: false,
     bloqueado: bloqueado
   }, { merge: true }).catch((error) => console.error(error));
 
-  estadoGps("GPS activo. El celular está enviando la posición del taxi.", "ok");
+  estadoGps("GPS activo. Esperando la primera lectura del GPS...", "ok");
   document.getElementById("btnStartGPS").classList.add("oculto");
   document.getElementById("btnStopGPS").classList.remove("oculto");
   document.getElementById("btnFalla").classList.remove("oculto");
+  mostrarNotificacion("🛰️ GPS activado", "exito", {
+    detalle: "Esperando la primera lectura del GPS..."
+  });
 
   ultimaEscritura = 0;
   watchId = navigator.geolocation.watchPosition(async (posicion) => {
@@ -140,10 +222,12 @@ async function activarGps() {
     };
 
     if (!marcadorPropio) {
-      marcadorPropio = L.marker([lectura.latitud, lectura.longitud]).addTo(map).bindPopup("Este taxi");
+      marcadorPropio = L.marker([lectura.latitud, lectura.longitud], { icon: iconoCarro }).addTo(map).bindPopup("Este taxi");
     } else {
       marcadorPropio.setLatLng([lectura.latitud, lectura.longitud]);
     }
+
+    refrescarRutaViaje();
 
     const caja = document.getElementById("gpsDatos");
     caja.classList.remove("oculto");
@@ -162,26 +246,52 @@ async function activarGps() {
         latitud: lectura.latitud,
         longitud: lectura.longitud,
         precision: lectura.precision,
+        conectado: true,
         estado_operativo: true,
         bloqueado: bloqueado,
         actualizado_en: lectura.actualizado_en
       }, { merge: true });
       caja.textContent += `\nEnviado: ${new Date().toLocaleTimeString()}`;
+      avisoErrorFirebase = false;
     } catch (error) {
       console.error(error);
       estadoGps("No se pudo enviar la ubicación a Firebase.", "error");
+      if (!avisoErrorFirebase) {
+        avisoErrorFirebase = true;
+        mostrarNotificacion("No se pudo enviar la ubicación a Firebase.", "error", {
+          detalle: "Revisa la conexión."
+        });
+      }
     }
-  }, (error) => {
+  }, async (error) => {
     console.error(error);
-    if (error.code === error.PERMISSION_DENIED) {
-      estadoGps("Permiso de ubicación denegado. Actívalo en el navegador del celular.", "error");
-    } else if (error.code === error.POSITION_UNAVAILABLE) {
-      estadoGps("Ubicación no disponible. Revisa el GPS del celular.", "error");
-    } else if (error.code === error.TIMEOUT) {
-      estadoGps("Tiempo de espera agotado al obtener la ubicación. Intenta de nuevo.", "error");
-    } else {
-      estadoGps("No se pudo obtener la ubicación. Revisa permisos del celular.", "error");
+    if (uidConductor) {
+      const ahora = new Date().toISOString();
+      await updateDoc(doc(db, "telemetria", uidConductor), {
+        conductor_uid: uidConductor,
+        conectado: false,
+        estado_operativo: false,
+        actualizado_en: ahora
+      }).catch(() => {});
+      await setDoc(doc(db, "flota_publica", uidConductor), {
+        conductor_uid: uidConductor,
+        nombre: nombreConductor,
+        bloqueado: bloqueado,
+        conectado: false,
+        estado_operativo: false,
+        actualizado_en: ahora
+      }, { merge: true }).catch(() => {});
     }
+    let mensajeGpsError = "No se pudo obtener la ubicación. Revisa permisos del celular.";
+    if (error.code === error.PERMISSION_DENIED) {
+      mensajeGpsError = "Permiso de ubicación denegado. Actívalo en el navegador del celular.";
+    } else if (error.code === error.POSITION_UNAVAILABLE) {
+      mensajeGpsError = "Ubicación no disponible. Revisa el GPS del celular.";
+    } else if (error.code === error.TIMEOUT) {
+      mensajeGpsError = "Tiempo de espera agotado al obtener la ubicación. Intenta de nuevo.";
+    }
+    estadoGps(mensajeGpsError, "error");
+    mostrarNotificacion("Error de GPS", "error", { detalle: mensajeGpsError, clave: "conductor:gps-error" });
   }, {
     enableHighAccuracy: true,
     maximumAge: 0,
@@ -198,6 +308,9 @@ async function detenerGps() {
   document.getElementById("btnFalla").classList.add("oculto");
   document.getElementById("gpsDatos").classList.add("oculto");
   estadoGps("GPS apagado.");
+  if (!bloqueado) {
+    mostrarNotificacion("GPS desactivado", "info", { detalle: "Ya no se envía tu ubicación." });
+  }
   if (uidConductor) {
     const ahora = new Date().toISOString();
     await updateDoc(doc(db, "telemetria", uidConductor), {
@@ -210,6 +323,7 @@ async function detenerGps() {
       conductor_uid: uidConductor,
       nombre: nombreConductor,
       bloqueado: bloqueado,
+      conectado: false,
       estado_operativo: false,
       actualizado_en: ahora
     }, { merge: true }).catch(() => {});
@@ -225,12 +339,14 @@ async function reportarFalla() {
   const data = snap.exists() ? snap.data() : {};
   await updateDoc(doc(db, "telemetria", uidConductor), {
     bloqueado: true,
+    conectado: false,
     estado_operativo: false
   });
   await setDoc(doc(db, "flota_publica", uidConductor), {
     conductor_uid: uidConductor,
     nombre: nombreConductor,
     bloqueado: true,
+    conectado: false,
     estado_operativo: false
   }, { merge: true }).catch((error) => console.error(error));
 
@@ -241,10 +357,14 @@ async function reportarFalla() {
   await setDoc(doc(db, "auditorias_desvios", `falla_${uidConductor}_${Date.now()}`), {
     conductor_id: uidConductor,
     conductor: nombreConductor,
-    lat: data.latitud || 0,
-    lng: data.longitud || 0,
+    lat: numeroCoordenada(data.latitud),
+    lng: numeroCoordenada(data.longitud),
     fecha: new Date().toISOString(),
     tipo: "falla_mecanica"
+  });
+
+  mostrarNotificacion("🛠️ Falla reportada", "advertencia", {
+    detalle: "El taxi quedó bloqueado hasta revisión del administrador."
   });
 }
 
@@ -256,9 +376,22 @@ function escucharEstadoConductor() {
     nombreConductor = data.nombre || nombreConductor;
     bloqueado = Boolean(data.bloqueado);
 
-    if (data.latitud && data.longitud) {
+    if (!modoAdminVista && bloqueadoAnterior !== null && bloqueado !== bloqueadoAnterior) {
+      if (bloqueado) {
+        mostrarNotificacion("⛔ Has sido bloqueado", "error", {
+          detalle: "El administrador revisará la auditoría."
+        });
+      } else {
+        mostrarNotificacion("✅ Has sido desbloqueado", "exito", {
+          detalle: "Puedes volver a activar el GPS."
+        });
+      }
+    }
+    bloqueadoAnterior = bloqueado;
+
+    if (Number.isFinite(numeroCoordenada(data.latitud)) && Number.isFinite(numeroCoordenada(data.longitud))) {
       if (!marcadorPropio) {
-        marcadorPropio = L.marker([data.latitud, data.longitud]).addTo(map).bindPopup(nombreConductor);
+        marcadorPropio = L.marker([data.latitud, data.longitud], { icon: iconoCarro }).addTo(map).bindPopup(nombreConductor);
       } else {
         marcadorPropio.setLatLng([data.latitud, data.longitud]);
       }
@@ -311,10 +444,11 @@ function escucharViajes() {
     }
 
     const { id, data } = activos[0];
+    const etapaCambio = !viajeActual || viajeActual.estado !== data.estado || viajePendienteId !== id;
     viajePendienteId = id;
     viajeActual = data;
     montoEspera = data.deuda_espera || 0;
-    dibujarViaje(data);
+    dibujarViaje(data, etapaCambio);
     ocultarBotonesViaje();
 
     if (data.estado === "buscando_conductor") {
@@ -327,6 +461,12 @@ function escucharViajes() {
       document.getElementById("btnAceptar").classList.remove("oculto");
       document.getElementById("viajeInfo").textContent =
         `Nueva solicitud de ${data.cliente_nombre}. Destino: ${data.destino_nombre || "sin nombre"}. Tienes 30 segundos para aceptar.`;
+      if (etapaCambio) {
+        mostrarNotificacion("👤 Nueva solicitud", "info", {
+          detalle: `${data.cliente_nombre} está esperando tu respuesta. Destino: ${data.destino_nombre || "sin nombre"}.`,
+          clave: `conductor:solicitud:${id}`
+        });
+      }
 
       if (viajeConTimer !== id) {
         clearTimeout(timerAsignacion);
@@ -364,11 +504,16 @@ async function aceptarViaje() {
   if (modoAdminVista) return;
   if (!viajePendienteId) return;
   clearTimeout(timerAsignacion);
-  await updateDoc(doc(db, "viajes", viajePendienteId), {
+  const id = viajePendienteId;
+  await updateDoc(doc(db, "viajes", id), {
     estado: "conductor_en_camino",
     conductor_nombre: nombreConductor,
     conductor_id: uidConductor,
     aceptado_en: new Date().toISOString()
+  });
+  mostrarNotificacion("✅ Viaje aceptado", "exito", {
+    detalle: "Dirígete al origen del pasajero.",
+    clave: `conductor:aceptado:${id}`
   });
 }
 
@@ -382,8 +527,13 @@ async function llegueAlOrigen() {
     llegada_origen_en: new Date().toISOString()
   });
 
-  alert("Comenzaron 10 segundos de cortesía. Después se cobrarán 2 Bs cada 5 segundos.");
+  mostrarNotificacion("📍 Llegada al origen registrada", "info", {
+    detalle: "10 s de cortesía. Después se cobran 2 Bs cada 5 s."
+  });
   timerCortesia = setTimeout(() => {
+    mostrarNotificacion("💳 Comenzó el cobro de espera", "advertencia", {
+      detalle: "2 Bs cada 5 segundos."
+    });
     temporizadorEspera = setInterval(async () => {
       if (!viajePendienteId) return detenerCobroEspera();
       montoEspera += 2;
@@ -402,6 +552,9 @@ async function pasajeroAbordo() {
     inicio_viaje_en: new Date().toISOString(),
     deuda_espera: montoEspera
   });
+  mostrarNotificacion("👤 Pasajero a bordo", "exito", {
+    detalle: "Viaje iniciado. Dirígete al destino."
+  });
 }
 
 async function finalizarViaje() {
@@ -413,6 +566,9 @@ async function finalizarViaje() {
     estado: "finalizado",
     finalizado_en: new Date().toISOString(),
     deuda_espera: montoEspera
+  });
+  mostrarNotificacion("🏁 Viaje finalizado", "exito", {
+    detalle: `Deuda de espera: ${montoEspera} Bs.`
   });
 }
 

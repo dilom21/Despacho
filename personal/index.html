@@ -25,7 +25,10 @@
         <input id="loginEmail" type="email" placeholder="correo@ejemplo.com">
 
         <label for="loginPass">Contraseña</label>
-        <input id="loginPass" type="password" placeholder="Contraseña">
+        <div class="campo-pass">
+          <input id="loginPass" type="password" placeholder="Contraseña">
+          <button type="button" class="btn-ojo" data-objetivo="loginPass" aria-label="Mostrar contraseña">Ver</button>
+        </div>
 
         <button id="btnLogin">Iniciar sesión</button>
         <div id="loginEstado" class="estado oculto"></div>
@@ -39,10 +42,16 @@
         <input id="regEmail" type="email" placeholder="correo@ejemplo.com">
 
         <label for="regPass">Contraseña</label>
-        <input id="regPass" type="password" placeholder="Mínimo 6 caracteres">
+        <div class="campo-pass">
+          <input id="regPass" type="password" placeholder="Mínimo 6 caracteres">
+          <button type="button" class="btn-ojo" data-objetivo="regPass" aria-label="Mostrar contraseña">Ver</button>
+        </div>
 
         <label for="regConfirm">Confirmar contraseña</label>
-        <input id="regConfirm" type="password" placeholder="Repite la contraseña">
+        <div class="campo-pass">
+          <input id="regConfirm" type="password" placeholder="Repite la contraseña">
+          <button type="button" class="btn-ojo" data-objetivo="regConfirm" aria-label="Mostrar contraseña">Ver</button>
+        </div>
 
         <button id="btnRegistrar">Crear cuenta de conductor</button>
         <div id="registroEstado" class="estado oculto"></div>

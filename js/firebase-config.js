@@ -15,3 +15,8 @@ const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app);
 export const auth = getAuth(app);
 export const ADMIN_EMAIL = "admin@despacho.com";
+
+// Segunda app nombrada para el cliente anonimo: aislada de la sesion del personal.
+const clienteApp = initializeApp(firebaseConfig, "clienteApp");
+export const clienteDb = getFirestore(clienteApp);
+export const clienteAuth = getAuth(clienteApp);

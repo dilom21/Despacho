@@ -127,6 +127,31 @@ button:disabled {
   cursor: not-allowed;
 }
 
+.campo-pass {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.campo-pass input {
+  flex: 1;
+}
+
+.btn-ojo {
+  width: auto;
+  margin-top: 0;
+  padding: 10px 12px;
+  background: #fff;
+  color: #222;
+  border-color: #999;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.btn-ojo:hover {
+  background: #eee;
+}
+
 .fila-botones {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -427,4 +452,141 @@ button:disabled {
    display tie on #appVista, flashing the panel before auth resolves. */
 .admin-layout.contenido-app {
   display: none;
+}
+
+/* Iconos de mapa (L.divIcon) tipo Uber/Yango: pin circular compacto con glifo. */
+.icono-mapa {
+  background: transparent;
+  border: 0;
+}
+
+.icono-mapa__pin {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
+  color: #ffffff;
+}
+
+.icono-mapa__pin svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: currentColor;
+}
+
+.icono-mapa__pin.icono-carro {
+  background: #f5b301;
+  color: #1f2937;
+}
+
+.icono-mapa__pin.icono-persona {
+  background: #2563eb;
+}
+
+.icono-mapa__pin.icono-destino {
+  background: #dc2626;
+}
+
+/* Notificaciones in-app tipo toast (esquina superior derecha, sobre mapa/panel). */
+.notificaciones {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 10000;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(340px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.notificacion {
+  pointer-events: auto;
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  background: #ffffff;
+  border: 1px solid #d8d8d8;
+  border-left-width: 4px;
+  border-radius: 6px;
+  padding: 10px 12px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.18);
+  animation: notificacion-entrar 180ms ease-out;
+}
+
+.notificacion--saliendo {
+  animation: notificacion-salir 200ms ease-in forwards;
+}
+
+.notificacion--info { border-left-color: #2563eb; }
+.notificacion--exito { border-left-color: #2e7d32; }
+.notificacion--advertencia { border-left-color: #e6a700; }
+.notificacion--error { border-left-color: #c62828; }
+
+.notificacion__icono {
+  font-size: 16px;
+  line-height: 1.3;
+}
+
+.notificacion__cuerpo {
+  flex: 1;
+  min-width: 0;
+}
+
+.notificacion__titulo {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #222;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.notificacion__detalle {
+  margin: 2px 0 0;
+  font-size: 12px;
+  color: #555;
+  line-height: 1.35;
+  overflow-wrap: break-word;
+}
+
+.notificacion__cerrar {
+  width: auto;
+  margin: 0;
+  padding: 0 4px;
+  border: 0;
+  background: transparent;
+  color: #888;
+  font-size: 18px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.notificacion__cerrar:hover {
+  background: transparent;
+  color: #222;
+}
+
+@keyframes notificacion-entrar {
+  from { opacity: 0; transform: translateX(14px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes notificacion-salir {
+  from { opacity: 1; transform: translateX(0); }
+  to { opacity: 0; transform: translateX(14px); }
+}
+
+@media (max-width: 800px) {
+  .notificaciones {
+    top: 10px;
+    right: 10px;
+    left: 10px;
+    width: auto;
+  }
 }

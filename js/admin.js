@@ -7,6 +7,8 @@ import {
   onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 import { ROL, urlModulo, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
+import { iconoCarro } from "./map-icons.js";
+import { mostrarNotificacion } from "./notificaciones.js";
 
 const UMBRAL_DESVIOS = 3;
 const flota = {};
@@ -16,12 +18,57 @@ const distanciasAnteriores = {};
 const conteoDesvios = {};
 let todosLosViajes = [];
 let usuariosLista = [];
+let telemetriaLista = [];
 let auditoriasLista = [];
 let unsubFlota = null;
 let unsubViajes = null;
 let unsubAuditorias = null;
 let unsubUsuarios = null;
 let adminUid = null;
+let flotaCargada = false;
+let viajesCargados = false;
+let auditoriasCargadas = false;
+const estadoConductores = {};
+const estadosViajes = {};
+const avisoEstadoViaje = {
+  buscando_conductor: {
+    tipo: "info",
+    titulo: () => "🆕 Nuevo viaje solicitado",
+    detalle: (v) => `${v.cliente_nombre || "Cliente"} -> ${v.destino_nombre || "destino"}`
+  },
+  conductor_en_camino: {
+    tipo: "info",
+    titulo: (v) => `🚕 ${v.conductor_nombre || "Conductor"} aceptó un viaje`,
+    detalle: (v) => `Cliente: ${v.cliente_nombre || "cliente"}`
+  },
+  en_viaje: {
+    tipo: "exito",
+    titulo: () => "🛣️ Viaje iniciado",
+    detalle: (v) => `Cliente: ${v.cliente_nombre || "cliente"}`
+  },
+  finalizado: {
+    tipo: "exito",
+    titulo: () => "🏁 Viaje finalizado",
+    detalle: (v) => `Cliente: ${v.cliente_nombre || "cliente"}`
+  },
+  rechazado_por_tiempo: {
+    tipo: "advertencia",
+    titulo: () => "⚠️ Viaje rechazado por tiempo",
+    detalle: (v) => `Cliente: ${v.cliente_nombre || "cliente"}`
+  },
+  rechazado_por_bloqueo: {
+    tipo: "advertencia",
+    titulo: () => "⚠️ Viaje rechazado por bloqueo",
+    detalle: (v) => `Cliente: ${v.cliente_nombre || "cliente"}`
+  }
+};
+
+// Acepta 0 como coordenada valida. Solo null/undefined/vacio o no numerico es invalido.
+function numeroCoordenada(valor) {
+  if (valor === null || valor === undefined || valor === "") return null;
+  const numero = Number(valor);
+  return Number.isFinite(numero) ? numero : null;
+}
 
 const TITULOS = {
   inicio: "Inicio",
@@ -68,7 +115,8 @@ function esViajeActivo(estado) {
 
 async function revisarDesvio(uid, conductor) {
   const viaje = viajesPorConductor[uid];
-  if (!viaje || viaje.estado !== "en_viaje" || !viaje.destino || !conductor.lat || !conductor.lng) {
+  if (!viaje || viaje.estado !== "en_viaje" || !viaje.destino
+    || !Number.isFinite(conductor.lat) || !Number.isFinite(conductor.lng)) {
     delete distanciasAnteriores[uid];
     conteoDesvios[uid] = 0;
     return;
@@ -118,12 +166,14 @@ async function revisarDesvio(uid, conductor) {
 function escucharFlota() {
   if (unsubFlota) unsubFlota();
   unsubFlota = onSnapshot(collection(db, "telemetria"), (snapshot) => {
+    telemetriaLista = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
     snapshot.docChanges().forEach(async (cambio) => {
       const uid = cambio.doc.id;
       const data = cambio.doc.data();
 
       if (cambio.type === "removed") {
         delete flota[uid];
+        delete estadoConductores[uid];
         if (marcadores[uid]) map.removeLayer(marcadores[uid]);
         delete marcadores[uid];
         return;
@@ -131,19 +181,49 @@ function escucharFlota() {
 
       const conductor = {
         nombre: data.nombre || "Conductor",
-        lat: data.latitud || null,
-        lng: data.longitud || null,
+        lat: numeroCoordenada(data.latitud),
+        lng: numeroCoordenada(data.longitud),
         precision: data.precision || null,
         actualizado_en: data.actualizado_en || null,
         fuente_gps: data.fuente_gps || null,
         estado_operativo: Boolean(data.estado_operativo),
         bloqueado: Boolean(data.bloqueado)
       };
+      const previo = estadoConductores[uid];
+      if (flotaCargada && previo) {
+        if (previo.estado_operativo !== conductor.estado_operativo) {
+          mostrarNotificacion(
+            conductor.estado_operativo
+              ? `🟢 ${conductor.nombre} se conectó`
+              : `⚪ ${conductor.nombre} se desconectó`,
+            conductor.estado_operativo ? "exito" : "info",
+            {
+              detalle: conductor.estado_operativo ? "GPS activo y operativo." : "GPS inactivo.",
+              clave: `admin:gps:${uid}:${conductor.estado_operativo}`
+            }
+          );
+        }
+        if (previo.bloqueado !== conductor.bloqueado) {
+          mostrarNotificacion(
+            conductor.bloqueado
+              ? `⛔ ${conductor.nombre} fue bloqueado`
+              : `✅ ${conductor.nombre} fue desbloqueado`,
+            conductor.bloqueado ? "error" : "exito",
+            { clave: `admin:bloqueo:${uid}:${conductor.bloqueado}` }
+          );
+        }
+      }
+      estadoConductores[uid] = {
+        estado_operativo: conductor.estado_operativo,
+        bloqueado: conductor.bloqueado,
+        nombre: conductor.nombre
+      };
+
       flota[uid] = conductor;
 
-      if (conductor.lat && conductor.lng) {
+      if (Number.isFinite(conductor.lat) && Number.isFinite(conductor.lng)) {
         if (!marcadores[uid]) {
-          marcadores[uid] = L.marker([conductor.lat, conductor.lng]).addTo(map);
+          marcadores[uid] = L.marker([conductor.lat, conductor.lng], { icon: iconoCarro }).addTo(map);
         } else {
           marcadores[uid].setLatLng([conductor.lat, conductor.lng]);
         }
@@ -152,8 +232,15 @@ function escucharFlota() {
 
       await revisarDesvio(uid, conductor);
     });
+    flotaCargada = true;
     renderConductores();
-  }, (error) => console.error(error));
+    renderUsuarios();
+  }, (error) => {
+    console.error(error);
+    mostrarNotificacion("No se pudieron cargar los datos de la flota.", "error", {
+      clave: "admin:error-flota"
+    });
+  });
 }
 
 function renderConductores() {
@@ -171,7 +258,7 @@ function renderConductores() {
 
   caja.innerHTML = registros.map(([uid, conductor]) => {
     const viaje = viajesPorConductor[uid];
-    const gps = conductor.lat && conductor.lng
+    const gps = Number.isFinite(conductor.lat) && Number.isFinite(conductor.lng)
       ? `${conductor.lat.toFixed(5)}, ${conductor.lng.toFixed(5)}`
       : "sin lectura";
 
@@ -213,12 +300,30 @@ async function desbloquearConductor(uid) {
   const alerta = document.getElementById("alertaDesvio");
   alerta.classList.remove("oculto");
   alerta.textContent = "Conductor desbloqueado. Debe volver a activar el GPS desde su celular.";
+  mostrarNotificacion(`✅ ${flota[uid]?.nombre || "Conductor"} fue desbloqueado`, "exito", {
+    detalle: "Debe volver a activar el GPS desde su celular.",
+    clave: `admin:bloqueo:${uid}:false`
+  });
 }
 
 function escucharViajes() {
   if (unsubViajes) unsubViajes();
   unsubViajes = onSnapshot(collection(db, "viajes"), (snapshot) => {
     todosLosViajes = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }));
+
+    const primeraCargaViajes = !viajesCargados;
+    viajesCargados = true;
+    todosLosViajes.forEach((v) => {
+      const previoEstado = estadosViajes[v.id];
+      if (!primeraCargaViajes && previoEstado !== v.estado && avisoEstadoViaje[v.estado]) {
+        const aviso = avisoEstadoViaje[v.estado];
+        mostrarNotificacion(aviso.titulo(v), aviso.tipo, {
+          detalle: aviso.detalle(v),
+          clave: `admin:viaje:${v.id}:${v.estado}`
+        });
+      }
+      estadosViajes[v.id] = v.estado;
+    });
 
     for (const k of Object.keys(viajesPorConductor)) delete viajesPorConductor[k];
     todosLosViajes.forEach((v) => {
@@ -240,7 +345,10 @@ function escucharViajes() {
     renderViajes();
     renderInicio();
     renderReportes();
-  }, (error) => console.error(error));
+  }, (error) => {
+    console.error(error);
+    mostrarNotificacion("No se pudieron cargar los viajes.", "error", { clave: "admin:error-viajes" });
+  });
 }
 
 function escucharUsuarios() {
@@ -250,16 +358,25 @@ function escucharUsuarios() {
     renderUsuarios();
     renderRoles();
     renderInicio();
-  }, (error) => console.error(error));
+  }, (error) => {
+    console.error(error);
+    mostrarNotificacion("No se pudieron cargar los usuarios.", "error", { clave: "admin:error-usuarios" });
+  });
 }
 
 function renderUsuarios() {
   const tbody = document.getElementById("usuariosTabla");
-  if (!usuariosLista.length) {
-    tbody.innerHTML = '<tr><td colspan="5">No hay usuarios.</td></tr>';
-    return;
-  }
-  tbody.innerHTML = usuariosLista.map((u) => `
+  const idsUsuarios = new Set(usuariosLista.map((u) => u.id));
+
+  const normales = [...usuariosLista].sort((a, b) =>
+    String(a.nombre || "").localeCompare(String(b.nombre || ""), "es")
+  );
+
+  const legacy = telemetriaLista
+    .filter((t) => !idsUsuarios.has(t.id))
+    .sort((a, b) => String(a.nombre || "").localeCompare(String(b.nombre || ""), "es"));
+
+  const filasNormales = normales.map((u) => `
     <tr>
       <td>${escapar(u.nombre || "sin nombre")}</td>
       <td>${escapar(u.email || "sin correo")}</td>
@@ -267,7 +384,24 @@ function renderUsuarios() {
       <td>${u.activo === false ? "inactivo" : "activo"}</td>
       <td>${horaLocal(u.creado_en)}</td>
     </tr>
-  `).join("");
+  `);
+
+  const filasLegacy = legacy.map((t) => `
+    <tr class="legacy">
+      <td>${escapar(t.nombre || "Conductor")} <em>(legacy)</em></td>
+      <td>sin correo</td>
+      <td>conductor</td>
+      <td>pendiente de migración</td>
+      <td>—</td>
+    </tr>
+  `);
+
+  if (!filasNormales.length && !filasLegacy.length) {
+    tbody.innerHTML = '<tr><td colspan="5">No hay usuarios.</td></tr>';
+    return;
+  }
+
+  tbody.innerHTML = filasNormales.concat(filasLegacy).join("");
 }
 
 function renderRoles() {
@@ -326,9 +460,14 @@ async function cambiarRol(uid) {
   try {
     await updateDoc(doc(db, "usuarios", uid), { rol: nuevoRol });
     mostrarRolesEstado(`Rol actualizado a ${nuevoRol}.`, false);
+    mostrarNotificacion("✅ Rol actualizado", "exito", {
+      detalle: `${usuario.email || usuario.nombre || "Usuario"}: ${nuevoRol}`,
+      clave: `admin:rol:${uid}:${nuevoRol}`
+    });
   } catch (error) {
     console.error(error);
     mostrarRolesEstado("No se pudo cambiar el rol.", true);
+    mostrarNotificacion("No se pudo cambiar el rol.", "error");
   }
 }
 
@@ -339,12 +478,19 @@ async function cambiarEstado(uid) {
     mostrarRolesEstado("No puedes desactivar tu propia cuenta.", true);
     return;
   }
+  const seActivara = usuario.activo === false;
   try {
-    await updateDoc(doc(db, "usuarios", uid), { activo: usuario.activo === false });
-    mostrarRolesEstado(`Cuenta ${usuario.activo === false ? "activada" : "desactivada"}.`, false);
+    await updateDoc(doc(db, "usuarios", uid), { activo: seActivara });
+    mostrarRolesEstado(`Cuenta ${seActivara ? "activada" : "desactivada"}.`, false);
+    mostrarNotificacion(
+      seActivara ? "✅ Cuenta activada" : "⛔ Cuenta desactivada",
+      seActivara ? "exito" : "advertencia",
+      { detalle: usuario.email || usuario.nombre || "Usuario" }
+    );
   } catch (error) {
     console.error(error);
     mostrarRolesEstado("No se pudo cambiar el estado.", true);
+    mostrarNotificacion("No se pudo cambiar el estado de la cuenta.", "error");
   }
 }
 
@@ -429,10 +575,29 @@ function escucharAuditorias() {
       .map((d) => d.data())
       .sort((a, b) => String(b.fecha || "").localeCompare(String(a.fecha || "")));
 
+    if (auditoriasCargadas) {
+      snapshot.docChanges().forEach((cambio) => {
+        if (cambio.type !== "added") return;
+        const a = cambio.doc.data();
+        mostrarNotificacion(
+          a.tipo === "falla_mecanica" ? "🛠️ Reporte de falla mecánica" : "🚨 Nueva auditoría de desvío",
+          a.tipo === "falla_mecanica" ? "advertencia" : "error",
+          {
+            detalle: a.conductor || "Conductor",
+            clave: `admin:auditoria:${cambio.doc.id}`
+          }
+        );
+      });
+    }
+    auditoriasCargadas = true;
+
     renderAuditorias();
     renderInicio();
     renderReportes();
-  }, (error) => console.error(error));
+  }, (error) => {
+    console.error(error);
+    mostrarNotificacion("No se pudieron cargar las auditorías.", "error", { clave: "admin:error-auditorias" });
+  });
 }
 
 function renderAuditorias() {

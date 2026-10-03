@@ -22,6 +22,20 @@ function cambiarPestana(login) {
   document.getElementById("formRegistro").classList.toggle("oculto", login);
 }
 
+function inicializarOjos() {
+  document.querySelectorAll(".btn-ojo").forEach((boton) => {
+    const objetivo = document.getElementById(boton.dataset.objetivo);
+    if (!objetivo) return;
+
+    boton.addEventListener("click", () => {
+      const estabaOculto = objetivo.type === "password";
+      objetivo.type = estabaOculto ? "text" : "password";
+      boton.textContent = estabaOculto ? "Ocultar" : "Ver";
+      boton.setAttribute("aria-label", estabaOculto ? "Ocultar contraseña" : "Mostrar contraseña");
+    });
+  });
+}
+
 async function iniciarSesion() {
   const email = document.getElementById("loginEmail").value.trim();
   const pass = document.getElementById("loginPass").value;
@@ -135,6 +149,8 @@ document.getElementById("tabLogin").addEventListener("click", () => cambiarPesta
 document.getElementById("tabRegistro").addEventListener("click", () => cambiarPestana(false));
 document.getElementById("btnLogin").addEventListener("click", iniciarSesion);
 document.getElementById("btnRegistrar").addEventListener("click", registrarConductor);
+
+inicializarOjos();
 
 document.getElementById("loginPass").addEventListener("keydown", (evento) => {
   if (evento.key === "Enter") iniciarSesion();
