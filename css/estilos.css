@@ -253,3 +253,23 @@ button:disabled {
     border-top: 1px solid #d8d8d8;
   }
 }
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 14px;
+}
+
+.tabs button {
+  width: auto;
+  flex: 1;
+  background: #fff;
+  color: #222;
+  border-color: #bbb;
+}
+
+.tabs button.activo {
+  background: #333;
+  color: #fff;
+  border-color: #333;
+}

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Despacho Vehicular - Personal</title>
+  <link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body>
+  <header>
+    <h1>Acceso del personal</h1>
+  </header>
+
+  <section class="login-wrap">
+    <div class="login-box">
+      <p class="texto-ayuda">Este es el único acceso del personal. Los conductores pueden crear su cuenta aquí.</p>
+
+      <div class="tabs">
+        <button id="tabLogin" class="activo">Iniciar sesión</button>
+        <button id="tabRegistro">Crear cuenta de conductor</button>
+      </div>
+
+      <div id="formLogin">
+        <label for="loginEmail">Correo</label>
+        <input id="loginEmail" type="email" placeholder="correo@ejemplo.com">
+
+        <label for="loginPass">Contraseña</label>
+        <input id="loginPass" type="password" placeholder="Contraseña">
+
+        <button id="btnLogin">Iniciar sesión</button>
+        <div id="loginEstado" class="estado oculto"></div>
+      </div>
+
+      <div id="formRegistro" class="oculto">
+        <label for="regNombre">Nombre</label>
+        <input id="regNombre" type="text" placeholder="Nombre completo">
+
+        <label for="regEmail">Correo</label>
+        <input id="regEmail" type="email" placeholder="correo@ejemplo.com">
+
+        <label for="regPass">Contraseña</label>
+        <input id="regPass" type="password" placeholder="Mínimo 6 caracteres">
+
+        <label for="regConfirm">Confirmar contraseña</label>
+        <input id="regConfirm" type="password" placeholder="Repite la contraseña">
+
+        <button id="btnRegistrar">Crear cuenta de conductor</button>
+        <div id="registroEstado" class="estado oculto"></div>
+        <p class="texto-ayuda">El registro público crea únicamente cuentas de conductor. No se pueden crear administradores desde aquí.</p>
+      </div>
+    </div>
+  </section>
+
+  <script type="module" src="../js/personal.js"></script>
+</body>
+</html>
