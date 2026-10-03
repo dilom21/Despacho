@@ -1,6 +1,7 @@
 import { db, auth } from "./firebase-config.js";
 import { calcularDistancia } from "./utils.js";
-import { doc, setDoc, getDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
+import { ROL, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
+import { doc, setDoc, onSnapshot, collection } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import { signInAnonymously, onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
 let usuarioCliente = null;
@@ -269,25 +270,13 @@ document.getElementById("btnSolicitar").addEventListener("click", solicitarViaje
 let flotaIniciada = false;
 
 async function prepararVistaCliente(user) {
-  // Si hay una sesión de administrador, su lugar es /admin/.
-  if (user && !user.isAnonymous && user.email?.toLowerCase() === "admin@despacho.com") {
-    location.replace("./admin/");
-    return;
-  }
-
-  // Si hay una sesión de conductor válida, su lugar es /conductor/.
   if (user && !user.isAnonymous) {
-    try {
-      const conductor = await getDoc(doc(db, "telemetria", user.uid));
-      if (conductor.exists()) {
-        location.replace("./conductor/");
-        return;
-      }
-    } catch (error) {
-      console.error(error);
+    const perfil = await asegurarPerfil(user);
+    if (perfil && perfil.activo !== false && (perfil.rol === ROL.ADMIN || perfil.rol === ROL.CONDUCTOR)) {
+      redirigirPorRol(perfil.rol);
+      return;
     }
-
-    // Una cuenta autenticada que no corresponde a ningún rol no entra como cliente.
+    // Cuenta autenticada sin rol válido: no entra como cliente.
     await signOut(auth);
     return;
   }

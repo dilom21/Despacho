@@ -1,9 +1,10 @@
-import { db, auth, ADMIN_EMAIL } from "./firebase-config.js";
+import { db, auth } from "./firebase-config.js";
+import { ROL, urlModulo, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
 import {
   doc, setDoc, getDoc, updateDoc, onSnapshot, collection, query, where
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import {
-  signInWithEmailAndPassword, onAuthStateChanged, signOut
+  onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
 let uidConductor = null;
@@ -28,21 +29,9 @@ let marcadorOrigen = null;
 let marcadorDestino = null;
 let lineaViaje = null;
 
-function mostrarLoginMensaje(texto, error = false) {
-  const caja = document.getElementById("loginEstado");
-  caja.textContent = texto;
-  caja.className = `estado ${error ? "error" : "ok"}`;
-}
-
 function mostrarApp() {
-  document.getElementById("loginVista").style.display = "none";
   document.getElementById("appVista").style.display = "grid";
   setTimeout(() => map.invalidateSize(), 100);
-}
-
-function mostrarLogin() {
-  document.getElementById("loginVista").style.display = "flex";
-  document.getElementById("appVista").style.display = "none";
 }
 
 function configurarVistaAdmin() {
@@ -97,19 +86,6 @@ function detenerCobroEspera() {
   if (temporizadorEspera) clearInterval(temporizadorEspera);
   timerCortesia = null;
   temporizadorEspera = null;
-}
-
-async function iniciarSesion() {
-  try {
-    await signInWithEmailAndPassword(
-      auth,
-      document.getElementById("emailConductor").value.trim(),
-      document.getElementById("passConductor").value
-    );
-  } catch (error) {
-    console.error(error);
-    mostrarLoginMensaje("Correo o contraseña incorrectos.", true);
-  }
 }
 
 async function activarGps() {
@@ -385,7 +361,7 @@ async function cerrarSesion() {
   if (unsubEstado) unsubEstado();
 
   if (modoAdminVista) {
-    location.href = "../admin/";
+    redirigirPorRol(ROL.ADMIN);
     return;
   }
 
@@ -393,7 +369,6 @@ async function cerrarSesion() {
   await signOut(auth);
 }
 
-document.getElementById("btnLogin").addEventListener("click", iniciarSesion);
 document.getElementById("btnStartGPS").addEventListener("click", activarGps);
 document.getElementById("btnStopGPS").addEventListener("click", detenerGps);
 document.getElementById("btnFalla").addEventListener("click", reportarFalla);
@@ -405,28 +380,30 @@ document.getElementById("btnCerrar").addEventListener("click", cerrarSesion);
 
 onAuthStateChanged(auth, async (user) => {
   if (!user || user.isAnonymous) {
-    uidConductor = null;
-    modoAdminVista = false;
-    mostrarLogin();
+    location.replace(urlModulo("personal"));
     return;
   }
 
-  const esAdmin = user.email && user.email.toLowerCase() === ADMIN_EMAIL;
+  const perfil = await asegurarPerfil(user);
+  if (!perfil || perfil.activo === false) {
+    try { await signOut(auth); } catch (error) { console.error(error); }
+    location.replace(urlModulo("personal"));
+    return;
+  }
 
-  if (esAdmin) {
-    const uidSeleccionado = new URLSearchParams(location.search).get("uid");
-    if (!uidSeleccionado) {
-      location.replace("../admin/");
+  const uidParam = new URLSearchParams(location.search).get("uid");
+
+  if (perfil.rol === ROL.ADMIN) {
+    if (!uidParam) {
+      redirigirPorRol(ROL.ADMIN);
       return;
     }
-
-    const snap = await getDoc(doc(db, "telemetria", uidSeleccionado));
+    const snap = await getDoc(doc(db, "telemetria", uidParam));
     if (!snap.exists()) {
-      location.replace("../admin/");
+      redirigirPorRol(ROL.ADMIN);
       return;
     }
-
-    uidConductor = uidSeleccionado;
+    uidConductor = uidParam;
     nombreConductor = snap.data().nombre || nombreConductor;
     mostrarApp();
     configurarVistaAdmin();
@@ -435,16 +412,14 @@ onAuthStateChanged(auth, async (user) => {
     return;
   }
 
-  const snap = await getDoc(doc(db, "telemetria", user.uid));
-  if (!snap.exists()) {
-    await signOut(auth);
-    mostrarLogin();
-    mostrarLoginMensaje("Esta cuenta no está autorizada como conductor.", true);
+  if (perfil.rol !== ROL.CONDUCTOR) {
+    try { await signOut(auth); } catch (error) { console.error(error); }
+    location.replace(urlModulo("personal"));
     return;
   }
 
   uidConductor = user.uid;
-  nombreConductor = snap.data().nombre || nombreConductor;
+  nombreConductor = perfil.nombre || "Conductor";
   modoAdminVista = false;
   mostrarApp();
   escucharEstadoConductor();

@@ -1,10 +1,11 @@
-import { db, auth, ADMIN_EMAIL } from "./firebase-config.js";
+import { db, auth } from "./firebase-config.js";
+import { ROL, urlModulo, asegurarPerfil, redirigirPorRol } from "./auth-roles.js";
 import { calcularDistancia, horaLocal } from "./utils.js";
 import {
   collection, doc, onSnapshot, setDoc, updateDoc
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-firestore.js";
 import {
-  signInWithEmailAndPassword, onAuthStateChanged, signOut
+  onAuthStateChanged, signOut
 } from "https://www.gstatic.com/firebasejs/9.22.1/firebase-auth.js";
 
 const UMBRAL_DESVIOS = 3;
@@ -20,34 +21,9 @@ let unsubAuditorias = null;
 const map = L.map("map").setView([-17.7833, -63.1821], 13);
 L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19 }).addTo(map);
 
-function mostrarLoginMensaje(texto) {
-  const caja = document.getElementById("loginEstado");
-  caja.textContent = texto;
-  caja.className = "estado error";
-}
-
 function mostrarApp() {
-  document.getElementById("loginVista").style.display = "none";
   document.getElementById("appVista").style.display = "grid";
   setTimeout(() => map.invalidateSize(), 100);
-}
-
-function mostrarLogin() {
-  document.getElementById("loginVista").style.display = "flex";
-  document.getElementById("appVista").style.display = "none";
-}
-
-async function iniciarSesion() {
-  try {
-    await signInWithEmailAndPassword(
-      auth,
-      document.getElementById("emailAdmin").value.trim(),
-      document.getElementById("passAdmin").value
-    );
-  } catch (error) {
-    console.error(error);
-    mostrarLoginMensaje("Correo o contraseña incorrectos.");
-  }
 }
 
 function esViajeActivo(estado) {
@@ -252,18 +228,23 @@ async function cerrarSesion() {
   await signOut(auth);
 }
 
-document.getElementById("btnLogin").addEventListener("click", iniciarSesion);
 document.getElementById("btnCerrar").addEventListener("click", cerrarSesion);
 
 onAuthStateChanged(auth, async (user) => {
-  const esAdmin = user && !user.isAnonymous && user.email && user.email.toLowerCase() === ADMIN_EMAIL;
+  if (!user || user.isAnonymous) {
+    location.replace(urlModulo("personal"));
+    return;
+  }
 
-  if (!esAdmin) {
-    if (user && !user.isAnonymous) {
-      location.replace("../conductor/");
-      return;
-    }
-    mostrarLogin();
+  const perfil = await asegurarPerfil(user);
+  if (!perfil || perfil.activo === false) {
+    try { await signOut(auth); } catch (error) { console.error(error); }
+    location.replace(urlModulo("personal"));
+    return;
+  }
+
+  if (perfil.rol !== ROL.ADMIN) {
+    redirigirPorRol(perfil.rol);
     return;
   }
 
