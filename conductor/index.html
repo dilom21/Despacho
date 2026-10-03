@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Despacho Vehicular - Conductor</title>
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+  <link rel="stylesheet" href="../css/estilos.css">
+</head>
+<body>
+  <header>
+    <h1>Panel del conductor</h1>
+  </header>
+
+  <section id="loginVista" class="login-wrap">
+    <div class="login-box">
+      <h2>Ingresar como conductor</h2>
+      <p class="texto-ayuda">Abre esta página desde el celular que estará dentro del taxi. El teléfono enviará la ubicación del vehículo.</p>
+
+      <label for="emailConductor">Correo</label>
+      <input id="emailConductor" type="email" placeholder="correo@ejemplo.com">
+
+      <label for="passConductor">Contraseña</label>
+      <input id="passConductor" type="password" placeholder="Contraseña">
+
+      <button id="btnLogin">Iniciar sesión</button>
+      <div id="loginEstado" class="estado oculto"></div>
+    </div>
+  </section>
+
+  <main id="appVista" class="pagina contenido-app">
+    <div id="map"></div>
+
+    <section class="panel">
+      <div id="modoAdminAviso" class="estado oculto"></div>
+      <h2>GPS del vehículo</h2>
+      <p class="texto-ayuda">El celular funciona como rastreador GPS del taxi. Para una prueba real, usa esta página con HTTPS y permite la ubicación precisa.</p>
+
+      <div id="conductorStatus" class="estado">GPS apagado.</div>
+      <div id="gpsDatos" class="estado info-gps oculto"></div>
+      <div id="alertaBloqueo" class="estado error oculto">Conductor bloqueado. El administrador debe revisar la auditoría.</div>
+
+      <button id="btnStartGPS">Activar GPS del celular</button>
+      <button id="btnStopGPS" class="secundario oculto">Detener GPS</button>
+      <button id="btnFalla" class="peligro oculto">Reportar falla mecánica</button>
+
+      <div class="separador"></div>
+      <h3>Viaje actual</h3>
+      <div id="viajeInfo" class="estado">No tienes solicitudes pendientes.</div>
+
+      <button id="btnAceptar" class="oculto">Aceptar viaje</button>
+      <button id="btnLlegue" class="oculto">Llegué al origen</button>
+      <button id="btnAbordo" class="oculto">Pasajero abordó / detener espera</button>
+      <button id="btnFinalizar" class="oculto">Finalizar viaje</button>
+      <div id="montoEspera" class="estado oculto">Deuda por espera: 0 Bs.</div>
+
+      <div class="separador"></div>
+      <button id="btnCerrar" class="secundario">Cerrar sesión</button>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+  <script type="module" src="../js/conductor.js"></script>
+</body>
+</html>

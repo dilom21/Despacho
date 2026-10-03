@@ -1,0 +1,28 @@
+DESPACHO VEHICULAR - PRUEBAS DE RUTAS Y ROLES
+
+Rutas:
+  /             -> Cliente
+  /conductor/   -> Conductor
+  /admin/        -> Administrador
+
+Prueba local:
+  1. Abre una terminal dentro de esta carpeta.
+  2. Ejecuta: python -m http.server 5500
+  3. Cliente:       http://localhost:5500/
+  4. Conductor:     http://localhost:5500/conductor/
+  5. Administrador: http://localhost:5500/admin/
+
+Acceso esperado:
+  - Cliente: no muestra enlaces a conductor ni administrador.
+  - Conductor: debe iniciar sesión con una cuenta que ya tenga un documento
+    telemetria/{uid}. Ya no existe registro público de conductores.
+  - Administrador: entra únicamente con admin@despacho.com.
+  - Un conductor autenticado que intente abrir /admin/ vuelve a /conductor/.
+  - Un administrador puede abrir la vista de un conductor desde el botón
+    "Ver vista conductor". Esa vista es de solo lectura.
+  - Una sesión de conductor o administrador que intente abrir / es redirigida
+    automáticamente a su panel correspondiente.
+
+IMPORTANTE:
+  Para que el aislamiento también se aplique en Firestore, publica el archivo
+  firestore.rules actualizado en Firebase.

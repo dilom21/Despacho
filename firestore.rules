@@ -3,17 +3,6 @@ rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    // =================================================================
-    // Sistema de Despacho y Telemetría Vehicular — Reglas Endurecidas
-    // -----------------------------------------------------------------
-    // Requisitos de despliegue en Firebase Console:
-    //   1) Authentication > Sign-in method > EMAIL/PASSWORD: habilitado.
-    //   2) Authentication > Sign-in method > ANONYMOUS: HABILITADO
-    //      (el Cliente entra sin registro como usuario anónimo).
-    //   3) Crear la cuenta del Admin con el correo: admin@despacho.com
-    //      (debe coincidir con la constante ADMIN_EMAIL del código).
-    // =================================================================
-
     function isAdmin() {
       return request.auth != null &&
              request.auth.token.email != null &&
@@ -21,26 +10,55 @@ service cloud.firestore {
     }
 
     match /telemetria/{uid} {
-      // Cualquier usuario autenticado (Cliente anónimo, Conductor, Admin) lee la flota.
+      // Cliente, conductor y administrador necesitan ver la flota en el mapa.
       allow read: if request.auth != null;
-      // El Conductor escribe SOLO su propio documento; el Admin bloquea/desbloquea.
-      allow write: if request.auth != null && (request.auth.uid == uid || isAdmin());
+
+      // Los perfiles de conductor no se crean desde una ruta pública.
+      // Se aprovisionan previamente y solo el administrador puede crear el registro.
+      allow create: if isAdmin();
+
+      // El conductor actualiza su GPS, pero no puede quitarse un bloqueo.
+      allow update: if isAdmin() || (
+        request.auth != null &&
+        request.auth.uid == uid &&
+        request.resource.data.bloqueado == resource.data.bloqueado
+      );
+
+      allow delete: if isAdmin();
     }
 
     match /viajes/{viajeId} {
-      // El Cliente (anónimo) crea y lee sus viajes; el Conductor lee los asignados.
-      allow read, create: if request.auth != null;
-      // Solo el Conductor asignado o el Admin pueden modificar un viaje.
-      allow update: if request.auth != null && (
-        request.resource.data.conductor_asignado == request.auth.uid ||
-        isAdmin()
+      // El cliente anónimo crea un viaje identificado con su UID.
+      allow create: if request.auth != null &&
+                    request.resource.data.cliente_uid == request.auth.uid;
+
+      // Solo cliente dueño, conductor asignado y admin pueden leer el viaje.
+      allow read: if request.auth != null && (
+        isAdmin() ||
+        resource.data.cliente_uid == request.auth.uid ||
+        resource.data.conductor_asignado == request.auth.uid
       );
+
+      // El conductor asignado puede cambiar el estado del viaje.
+      allow update: if isAdmin() || (
+        request.auth != null &&
+        resource.data.conductor_asignado == request.auth.uid &&
+        request.resource.data.conductor_asignado == request.auth.uid &&
+        request.resource.data.cliente_uid == resource.data.cliente_uid
+      );
+
       allow delete: if isAdmin();
     }
 
     match /auditorias_desvios/{auditoriaId} {
-      // Registro histórico de desvíos y fallas mecánicas.
-      allow read, create: if request.auth != null;
+      allow read: if isAdmin();
+
+      // El conductor puede registrar su propia falla; el admin registra desvíos.
+      allow create: if isAdmin() || (
+        request.auth != null &&
+        request.resource.data.conductor_id == request.auth.uid
+      );
+
       allow update, delete: if isAdmin();
     }
   }
